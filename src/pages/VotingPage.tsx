@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { collection, query, where, getDocs, updateDoc, doc, limit, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { Candidate, SchoolInfo } from '../types';
+import { Candidate, SchoolInfo, Token } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
@@ -25,6 +25,7 @@ const VotingPage: React.FC = () => {
   const [schoolInfo, setSchoolInfo] = useState<SchoolInfo | null>(null);
   const [token, setToken] = useState('');
   const [isValidToken, setIsValidToken] = useState(false);
+  const [tokenDocId, setTokenDocId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const isMobile = window.innerWidth < 768;
@@ -83,13 +84,13 @@ const VotingPage: React.FC = () => {
 
       if (!querySnapshot.empty) {
         const tokenDoc = querySnapshot.docs[0];
-        const tokenData = tokenDoc.data();
+        const tokenData = tokenDoc.data() as Token;
         console.log('Token document data:', tokenData);
         
         if (!tokenData.used) {
-          await updateDoc(doc(db, 'tokens', tokenDoc.id), { used: true });
           setIsValidToken(true);
-          console.log('Token successfully validated and marked as used');
+          setTokenDocId(tokenDoc.id);
+          console.log('Token successfully validated');
         } else {
           setError('Token sudah digunakan');
           console.log('Token is already used');
@@ -110,13 +111,22 @@ const VotingPage: React.FC = () => {
   };
 
   const handleConfirmVote = async () => {
-    if (!selectedCandidate) return;
+    if (!selectedCandidate || !tokenDocId) return;
 
     try {
+      // Update candidate vote count
       const candidateRef = doc(db, 'candidates', selectedCandidate.id);
       await updateDoc(candidateRef, {
         voteCount: selectedCandidate.voteCount + 1
       });
+
+      // Mark token as used and store the candidate ID
+      const tokenRef = doc(db, 'tokens', tokenDocId);
+      await updateDoc(tokenRef, { 
+        used: true,
+        candidateId: selectedCandidate.id
+      });
+
       setShowConfirmation(false);
       setSelectedCandidate(null);
       setShowThankYou(true);

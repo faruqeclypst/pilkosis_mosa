@@ -1,15 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { collection, writeBatch, doc, getDocs, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, writeBatch, doc, getDocs, deleteDoc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
+import { Token } from '../../types';
+import { saveAs } from 'file-saver';
 
 interface TokenGeneratorProps {
   setError: (error: string | null) => void;
-}
-
-interface Token {
-  id: string;
-  token: string;
-  used: boolean;
 }
 
 const TokenGenerator: React.FC<TokenGeneratorProps> = ({ setError }) => {
@@ -67,12 +63,12 @@ const TokenGenerator: React.FC<TokenGeneratorProps> = ({ setError }) => {
   const generateTokens = async () => {
     setGeneratingTokens(true);
     const batch = writeBatch(db);
-    const newTokens = [];
+    const newTokens: string[] = [];
 
     for (let i = 0; i < tokenCount; i++) {
       const token = generateToken();
       const tokenRef = doc(collection(db, 'tokens'));
-      batch.set(tokenRef, { token, used: false });
+      batch.set(tokenRef, { token, used: false, candidateId: null });
       newTokens.push(token);
     }
 
@@ -90,14 +86,9 @@ const TokenGenerator: React.FC<TokenGeneratorProps> = ({ setError }) => {
   };
 
   const exportTokensToCSV = (tokens: string[]) => {
-    const csvContent = "data:text/csv;charset=utf-8," + tokens.join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "voting_tokens.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const csvContent = ["Token"].concat(tokens).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    saveAs(blob, "voting_tokens.csv");
   };
 
   const handleDeleteToken = async (token: Token) => {
@@ -121,8 +112,29 @@ const TokenGenerator: React.FC<TokenGeneratorProps> = ({ setError }) => {
 
   const handleUpdateToken = async (id: string, used: boolean) => {
     try {
-      await updateDoc(doc(db, 'tokens', id), { used: !used });
-      fetchTokens();
+      const tokenRef = doc(db, 'tokens', id);
+      const tokenSnap = await getDoc(tokenRef);
+      const tokenData = tokenSnap.data() as Token;
+
+      if (used && !tokenData.used) {
+        // Token sedang diatur menjadi digunakan
+        await updateDoc(tokenRef, { used: true });
+      } else if (!used && tokenData.used) {
+        // Token sedang diatur menjadi belum digunakan, kita perlu membatalkan vote
+        if (tokenData.candidateId) {
+          const candidateRef = doc(db, 'candidates', tokenData.candidateId);
+          const candidateSnap = await getDoc(candidateRef);
+          const candidateData = candidateSnap.data();
+          if (candidateData && candidateData.voteCount > 0) {
+            await updateDoc(candidateRef, {
+              voteCount: candidateData.voteCount - 1
+            });
+          }
+        }
+        await updateDoc(tokenRef, { used: false, candidateId: null });
+      }
+
+      fetchTokens(); // Refresh token list
     } catch (error) {
       console.error("Error updating token: ", error);
       setError('Gagal mengupdate status token');
@@ -221,7 +233,7 @@ const TokenGenerator: React.FC<TokenGeneratorProps> = ({ setError }) => {
                   </td>
                   <td className="px-4 py-2 border">
                     <button
-                      onClick={() => handleUpdateToken(token.id, token.used)}
+                      onClick={() => handleUpdateToken(token.id, !token.used)}
                       className={`px-2 py-1 rounded mr-2 ${
                         token.used
                           ? 'bg-green-500 hover:bg-green-600'

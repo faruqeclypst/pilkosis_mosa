@@ -15,6 +15,8 @@ export interface Candidate {
     logo: string;
   }
   export interface Token {
+    id: string;
     token: string;
     used: boolean;
+    candidateId: string | null;
   }
