@@ -14,6 +14,7 @@ import ActionButtons from '../components/admin/ActionButtons';
 import DeleteConfirmationModal from '../components/admin/DeleteConfirmationModal';
 import ResetConfirmationModal from '../components/admin/ResetConfirmationModal';
 import ResetVoteConfirmationModal from '../components/admin/ResetVoteConfirmationModal';
+import TokenGenerator from '../components/admin/TokenGenerator';
 import { exportToPDF } from '../utils/pdfExport';
 import '../assets/css/AdminTable.css';
 
@@ -141,29 +142,29 @@ const AdminPage: React.FC = () => {
           <h1 className="text-2xl font-bold">Admin Dashboard</h1>
         </div>
         <nav className="mt-6">
-  {[
-    { text: "Informasi Sekolah", href: "#school-info", icon: <FaSchool /> },
-    { text: "Daftar Calon", href: "#candidates", icon: <FaUsers /> },
-    { text: "Statistik Pemilihan", href: "#statistics", icon: <FaChartBar /> },
-    { text: "Peringkat Kandidat", href: "#ranking", icon: <FaTrophy /> },
-  ].map((item, index) => (
-    <a 
-      key={index} 
-      href={item.href} 
-      className="flex items-center py-3 px-6 hover:bg-blue-700 transition-colors duration-200"
-    >
-      <span className="mr-3">{item.icon}</span>
-      {item.text}
-    </a>
-  ))}
-  <button
-    onClick={handleLogout}
-    className="w-full flex items-center text-left py-3 px-6 hover:bg-blue-700 transition-colors duration-200"
-  >
-    <FaSignOutAlt className="mr-3" />
-    Logout
-  </button>
-</nav>
+          {[
+            { text: "Informasi Sekolah", href: "#school-info", icon: <FaSchool /> },
+            { text: "Daftar Calon", href: "#candidates", icon: <FaUsers /> },
+            { text: "Statistik Pemilihan", href: "#statistics", icon: <FaChartBar /> },
+            { text: "Peringkat Kandidat", href: "#ranking", icon: <FaTrophy /> },
+          ].map((item, index) => (
+            <a 
+              key={index} 
+              href={item.href} 
+              className="flex items-center py-3 px-6 hover:bg-blue-700 transition-colors duration-200"
+            >
+              <span className="mr-3">{item.icon}</span>
+              {item.text}
+            </a>
+          ))}
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center text-left py-3 px-6 hover:bg-blue-700 transition-colors duration-200"
+          >
+            <FaSignOutAlt className="mr-3" />
+            Logout
+          </button>
+        </nav>
       </div>
 
       {/* Main Content */}
@@ -192,6 +193,7 @@ const AdminPage: React.FC = () => {
               onResetVotes={() => setShowResetVoteConfirmation(true)} 
               onDeleteAll={() => setShowResetConfirmation(true)} 
             />
+            <TokenGenerator setError={setError} />
           </div>
 
           {/* Reset Notification */}

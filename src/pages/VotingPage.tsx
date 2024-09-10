@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { collection, doc, updateDoc, onSnapshot, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc, limit, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { Candidate, SchoolInfo } from '../types';
 import { useNavigate } from 'react-router-dom';
@@ -23,6 +23,8 @@ const VotingPage: React.FC = () => {
   const [showThankYou, setShowThankYou] = useState(false);
   const [countdown, setCountdown] = useState(3);
   const [schoolInfo, setSchoolInfo] = useState<SchoolInfo | null>(null);
+  const [token, setToken] = useState('');
+  const [isValidToken, setIsValidToken] = useState(false);
   const navigate = useNavigate();
 
   const isMobile = window.innerWidth < 768;
@@ -41,15 +43,21 @@ const VotingPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, 'candidates'), (snapshot) => {
-      const candidatesData: Candidate[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Candidate));
-      setCandidates(candidatesData);
-    }, (err) => {
-      setError('Error fetching candidates: ' + err.message);
-    });
+    if (isValidToken) {
+      const fetchCandidates = async () => {
+        try {
+          const querySnapshot = await getDocs(collection(db, 'candidates'));
+          const candidatesData: Candidate[] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Candidate));
+          setCandidates(candidatesData);
+        } catch (err) {
+          console.error('Error fetching candidates:', err);
+          setError('Error fetching candidates: ' + (err as Error).message);
+        }
+      };
 
-    return () => unsubscribe();
-  }, []);
+      fetchCandidates();
+    }
+  }, [isValidToken]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -62,6 +70,39 @@ const VotingPage: React.FC = () => {
     }
     return () => clearInterval(timer);
   }, [showThankYou, countdown, navigate]);
+
+  const validateToken = async () => {
+    setError(null);
+    console.log('Attempting to validate token:', token);
+    try {
+      const q = query(collection(db, 'tokens'), where('token', '==', token), limit(1));
+      const querySnapshot = await getDocs(q);
+      
+      console.log('Query snapshot empty?', querySnapshot.empty);
+      console.log('Number of documents found:', querySnapshot.size);
+
+      if (!querySnapshot.empty) {
+        const tokenDoc = querySnapshot.docs[0];
+        const tokenData = tokenDoc.data();
+        console.log('Token document data:', tokenData);
+        
+        if (!tokenData.used) {
+          await updateDoc(doc(db, 'tokens', tokenDoc.id), { used: true });
+          setIsValidToken(true);
+          console.log('Token successfully validated and marked as used');
+        } else {
+          setError('Token sudah digunakan');
+          console.log('Token is already used');
+        }
+      } else {
+        setError('Token tidak valid');
+        console.log('No matching token found in database');
+      }
+    } catch (err) {
+      console.error('Error during token validation:', err);
+      setError('Terjadi kesalahan saat memvalidasi token');
+    }
+  };
 
   const handleVoteClick = (candidate: Candidate) => {
     setSelectedCandidate(candidate);
@@ -113,12 +154,6 @@ const VotingPage: React.FC = () => {
         </div>
       </div>
       <div className="p-6 flex flex-col flex-grow">
-        {/* <div className="mb-4 flex-grow">
-          <h3 className="font-semibold text-lg text-blue-600 mb-2">Visi:</h3>
-          <p className="text-gray-700 mb-4">{candidate.vision}</p>
-          <h3 className="font-semibold text-lg text-blue-600 mb-2">Misi:</h3>
-          <p className="text-gray-700">{candidate.mission}</p>
-        </div> */}
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
@@ -166,13 +201,36 @@ const VotingPage: React.FC = () => {
     );
   }
 
+  if (!isValidToken) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-100">
+        <div className="bg-white p-8 rounded-lg shadow-md">
+          <h2 className="text-2xl font-bold mb-4">Masukkan Token Voting</h2>
+          {error && <p className="text-red-500 mb-4">{error}</p>}
+          <input
+            type="text"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            className="border rounded px-3 py-2 w-full mb-4"
+            placeholder="Masukkan token"
+          />
+          <button
+            onClick={validateToken}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 w-full"
+          >
+            Validasi Token
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="min-h-screen py-6 px-4"
-      // className="min-h-screen bg-gradient-to-br from-blue-100 via-white to-purple-100 py-12 px-4 sm:px-6 lg:px-8"
     >
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-12">
@@ -206,7 +264,6 @@ const VotingPage: React.FC = () => {
         )}
         
         <div className="relative">
-          {/* Tombol navigasi Swiper */}
           <div className="absolute top-1/2 left-0 transform -translate-y-1/2 z-10">
             <button className="swiper-button-prev"></button>
           </div>
