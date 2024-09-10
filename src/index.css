@@ -1,0 +1,39 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+@import 'swiper/css';
+@import 'swiper/css/effect-coverflow';
+@import 'swiper/css/pagination';
+@import 'swiper/css/navigation';
+
+
+  body {
+    @apply text-base font-normal leading-relaxed text-[rgb(var(--color-text)/0.87)] bg-[rgb(var(--color-background))];
+    font-family: 'Poppins', sans-serif;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  a {
+    @apply font-medium text-[rgb(var(--color-primary))] no-underline hover:text-[rgb(var(--color-primary-light))];
+  }
+
+  h1 {
+    @apply text-5xl leading-tight;
+  }
+
+@layer components {
+  .btn {
+    @apply rounded-lg border border-transparent px-5 py-2.5 text-base font-medium 
+           bg-[rgb(var(--color-background))] cursor-pointer transition-colors duration-250
+           hover:border-[rgb(var(--color-primary))] focus:outline-none focus:ring-4 focus:ring-[rgb(var(--color-primary)/0.25)];
+  }
+}
+
+@layer utilities {
+  .content-layout {
+    @apply flex items-center justify-center min-h-screen min-w-[320px];
+  }
+}

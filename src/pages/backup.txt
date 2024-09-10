@@ -1,0 +1,800 @@
+// src/pages/AdminPage.tsx
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { collection, addDoc, updateDoc, deleteDoc, doc, setDoc, onSnapshot, getDoc, writeBatch } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../services/firebase';
+import { Candidate, SchoolInfo } from '../types';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { compressAndConvertToWebP } from '../utils/imageUtils';
+import { uploadImageToFirebase } from '../utils/firebaseUtils';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import html2canvas from 'html2canvas';
+
+const AdminPage: React.FC = () => {
+  const [showResetConfirmation, setShowResetConfirmation] = useState(false);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [schoolInfo, setSchoolInfo] = useState<SchoolInfo>({ name: '', logo: '' });
+  const [newSchoolName, setNewSchoolName] = useState('');
+  const [newSchoolLogo, setNewSchoolLogo] = useState<File | null>(null);
+  const [newCandidate, setNewCandidate] = useState<Omit<Candidate, 'id' | 'voteCount'>>({
+    name: '',
+    kelas: '',
+    vision: '',
+    mission: '',
+    photoUrl: '',
+  });
+  const [error, setError] = useState<string | null>(null);
+  const [chartType, setChartType] = useState<'pie' | 'bar'>('pie');
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [candidateToDelete, setCandidateToDelete] = useState<Candidate | null>(null);
+  const [resetNotification, setResetNotification] = useState<string | null>(null);
+  const [editableCandidate, setEditableCandidate] = useState<string | null>(null);
+  const [tempVotes, setTempVotes] = useState<{ [key: string]: number }>({});
+  const [clickCount, setClickCount] = useState<{ [key: string]: number }>({});
+  const [isUploading, setIsUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isAddingNewCandidate, setIsAddingNewCandidate] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, 'candidates'), (snapshot) => {
+      const candidatesData: Candidate[] = [];
+      snapshot.forEach((doc) => {
+        candidatesData.push({ id: doc.id, ...doc.data() } as Candidate);
+      });
+      setCandidates(candidatesData);
+    }, (err) => {
+      setError('Error fetching candidates: ' + err.message);
+    });
+
+    fetchSchoolInfo();
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setIsUploading(true);
+      setError(null);
+      try {
+        const preview = URL.createObjectURL(file);
+        setPreviewUrl(preview);
+
+        const processedFile = await compressAndConvertToWebP(file);
+        console.log('File compressed:', processedFile);
+
+        const downloadURL = await uploadImageToFirebase(processedFile, `candidates/${processedFile.name}`);
+        console.log('File uploaded, URL:', downloadURL);
+
+        setNewCandidate(prev => ({ ...prev, photoUrl: downloadURL }));
+      } catch (err) {
+        console.error('Error in upload process:', err);
+        setError('Error uploading file: ' + (err as Error).message);
+      } finally {
+        setIsUploading(false);
+      }
+    }
+  };
+    
+  const handleCandidatePhotoUpdate = async (candidateId: string, event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      try {
+        const processedFile = await compressAndConvertToWebP(file);
+        const downloadURL = await uploadImageToFirebase(processedFile, `candidates/${candidateId}/${processedFile.name}`);
+        await handleUpdateCandidate(candidateId, { photoUrl: downloadURL });
+      } catch (err) {
+        setError('Error updating candidate photo: ' + (err as Error).message);
+      }
+    }
+  };
+
+  const handleVoteChange = (candidateId: string, newVoteCount: number) => {
+    setTempVotes(prev => ({ ...prev, [candidateId]: newVoteCount }));
+  };
+
+  const handleVoteClick = (candidateId: string) => {
+    setClickCount(prev => {
+      const newCount = (prev[candidateId] || 0) + 1;
+      if (newCount === 3) {
+        setEditableCandidate(candidateId);
+        const candidate = candidates.find(c => c.id === candidateId);
+        if (candidate) {
+          setTempVotes(prev => ({ ...prev, [candidateId]: candidate.voteCount }));
+        }
+        return { ...prev, [candidateId]: 0 };
+      }
+      return { ...prev, [candidateId]: newCount };
+    });
+  };
+
+  const handleVoteUpdate = async (candidateId: string) => {
+    try {
+      const newVoteCount = tempVotes[candidateId];
+      if (newVoteCount !== undefined && newVoteCount >= 0) {
+        await updateDoc(doc(db, 'candidates', candidateId), { voteCount: newVoteCount });
+        console.log(`Vote count updated for candidate ${candidateId}`);
+        
+        setCandidates(prev => prev.map(c => 
+          c.id === candidateId ? { ...c, voteCount: newVoteCount } : c
+        ));
+        
+        setEditableCandidate(null);
+        setTempVotes(prev => {
+          const newTempVotes = { ...prev };
+          delete newTempVotes[candidateId];
+          return newTempVotes;
+        });
+      }
+    } catch (err) {
+      setError('Error updating vote count: ' + (err as Error).message);
+      console.error('Error updating vote count:', err);
+    }
+  };
+
+  const resetVotes = async () => {
+    if (window.confirm('Apakah Anda yakin ingin mereset semua vote? Tindakan ini tidak dapat dibatalkan.')) {
+      try {
+        const batch = writeBatch(db);
+        
+        candidates.forEach((candidate) => {
+          const candidateRef = doc(db, 'candidates', candidate.id);
+          batch.update(candidateRef, { voteCount: 0 });
+        });
+  
+        await batch.commit();
+        setResetNotification('Vote berhasil direset!');
+        setTimeout(() => setResetNotification(null), 3000);
+      } catch (err) {
+        setError('Error resetting votes: ' + (err as Error).message);
+        console.error('Error resetting votes:', err);
+      }
+    }
+  };
+
+  const handleResetData = async () => {
+    try {
+      const batch = writeBatch(db);
+      
+      candidates.forEach((candidate) => {
+        const candidateRef = doc(db, 'candidates', candidate.id);
+        batch.delete(candidateRef);
+      });
+  
+      await batch.commit();
+  
+      setCandidates([]);
+      setShowResetConfirmation(false);
+      console.log('Data reset successfully');
+    } catch (err) {
+      setError('Error resetting data: ' + (err as Error).message);
+      console.error('Error resetting data:', err);
+    }
+  };
+
+  const fetchSchoolInfo = async () => {
+    try {
+      const schoolInfoRef = doc(db, 'schoolInfo', 'info');
+      const docSnap = await getDoc(schoolInfoRef);
+
+      if (docSnap.exists()) {
+        const data = docSnap.data() as SchoolInfo;
+        setSchoolInfo(data);
+        setNewSchoolName(data.name);
+      } else {
+        const defaultSchoolInfo: SchoolInfo = { name: 'Nama Sekolah Default', logo: '' };
+        await setDoc(schoolInfoRef, defaultSchoolInfo);
+        setSchoolInfo(defaultSchoolInfo);
+        setNewSchoolName(defaultSchoolInfo.name);
+      }
+    } catch (err) {
+      setError('Error fetching school info: ' + (err as Error).message);
+    }
+  };
+
+  const handleAddCandidate = async () => {
+    if (!newCandidate.name || !newCandidate.photoUrl) {
+      setError('Nama dan foto kandidat harus diisi');
+      return;
+    }
+    try {
+      await addDoc(collection(db, 'candidates'), { 
+        ...newCandidate, 
+        voteCount: 0 
+      });
+      console.log('New candidate added with photo URL:', newCandidate.photoUrl);
+      setNewCandidate({ name: '', kelas: '', vision: '', mission: '', photoUrl: '' });
+      setPreviewUrl(null);
+      setError(null);
+      setIsAddingNewCandidate(false);
+    } catch (err) {
+      setError('Error adding candidate: ' + (err as Error).message);
+    }
+  };
+
+  const handleUpdateCandidate = async (id: string, data: Partial<Candidate>) => {
+    try {
+      await updateDoc(doc(db, 'candidates', id), data);
+    } catch (err) {
+      setError('Error updating candidate: ' + (err as Error).message);
+    }
+  };
+
+  const handleDeleteCandidate = (candidate: Candidate) => {
+    setCandidateToDelete(candidate);
+    setShowDeleteConfirmation(true);
+  };
+  
+  const confirmDeleteCandidate = async () => {
+    if (candidateToDelete) {
+      try {
+        await deleteDoc(doc(db, 'candidates', candidateToDelete.id));
+        console.log(`Kandidat ${candidateToDelete.name} berhasil dihapus`);
+        setShowDeleteConfirmation(false);
+        setCandidateToDelete(null);
+      } catch (err) {
+        setError('Error deleting candidate: ' + (err as Error).message);
+      }
+    }
+  };
+
+  const handleSchoolLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setNewSchoolLogo(file);
+    }
+  };
+
+  const handleUpdateSchoolInfo = async () => {
+    try {
+      const schoolInfoRef = doc(db, 'schoolInfo', 'info');
+      let logoUrl = schoolInfo.logo;
+
+      if (newSchoolLogo) {
+        const storageRef = ref(storage, `school/logo.${newSchoolLogo.name.split('.').pop()}`);
+        await uploadBytes(storageRef, newSchoolLogo);
+        logoUrl = await getDownloadURL(storageRef);
+      }
+
+      const updatedSchoolInfo: SchoolInfo = {
+        name: newSchoolName || schoolInfo.name,
+        logo: logoUrl
+      };
+
+      await setDoc(schoolInfoRef, updatedSchoolInfo, { merge: true });
+      setSchoolInfo(updatedSchoolInfo);
+      setNewSchoolName('');
+      setNewSchoolLogo(null);
+      console.log('School info updated successfully');
+    } catch (err) {
+      setError('Error updating school info: ' + (err as Error).message);
+      console.error('Error updating school info:', err);
+    }
+  };
+
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
+
+  const sortedCandidates = useMemo(() => {
+    return [...candidates].sort((a, b) => b.voteCount - a.voteCount);
+  }, [candidates]);
+
+  const totalVotes = candidates.reduce((sum, candidate) => sum + candidate.voteCount, 0);
+
+  const exportToPDF = async () => {
+    const pdf = new jsPDF();
+    const currentYear = new Date().getFullYear();
+    const pageWidth = pdf.internal.pageSize.width;
+    const pageHeight = pdf.internal.pageSize.height;
+    const margin = 20;
+  
+    const addUnderlinedText = (text: string, x: number, y: number, fontSize: number) => {
+      pdf.setFontSize(fontSize);
+      pdf.text(text, x, y, { align: 'center' });
+      const textWidth = pdf.getTextWidth(text);
+      pdf.line(x - textWidth / 2, y + 1, x + textWidth / 2, y + 1);
+    };
+  
+    addUnderlinedText('Hasil Akhir Pemilihan Ketua Osis', pageWidth / 2, 15, 16);
+    pdf.setFontSize(14);
+    pdf.text(schoolInfo.name, pageWidth / 2, 25, { align: 'center' });
+    pdf.setFontSize(12);
+    pdf.text(`Tahun ${currentYear}`, pageWidth / 2, 33, { align: 'center' });
+  
+    pdf.setFontSize(12);
+    pdf.text(`Total Vote: ${totalVotes}`, margin, 45);
+  
+    const tableColumn = ["Peringkat", "Nama Kandidat", "Jumlah Vote", "Persentase"];
+    const tableRows = sortedCandidates.map((candidate, index) => {
+      const percentage = (candidate.voteCount / totalVotes * 100).toFixed(2);
+      return [index + 1, candidate.name, candidate.voteCount, `${percentage}%`];
+    });
+  
+    const startY = 55;
+    pdf.autoTable({
+      head: [tableColumn],
+      body: tableRows,
+      startY: startY,
+      headStyles: { fillColor: [0, 101, 255], textColor: 255 },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+      bodyStyles: { textColor: 50 },
+      margin: { left: margin, right: margin },
+    });
+  
+    const finalY = (pdf as any).lastAutoTable.finalY || startY;
+  
+    const addChartToPDF = async (chartType: 'pie' | 'bar', title: string, yPosition: number) => {
+      setChartType(chartType);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const chartContainer = document.getElementById('chart-container');
+      if (chartContainer) {
+        const canvas = await html2canvas(chartContainer, {
+          scale: 2,
+          logging: false,
+          useCORS: true
+        });
+        const imgData = canvas.toDataURL('image/png');
+        const imgWidth = pageWidth - (2 * margin);
+        const imgHeight = canvas.height * imgWidth / canvas.width;
+  
+        pdf.setFontSize(14);
+        pdf.text(title, pageWidth / 2, yPosition, { align: 'center' });
+        pdf.addImage(imgData, 'PNG', margin, yPosition + 10, imgWidth, imgHeight);
+  
+        return yPosition + imgHeight + 25;
+      }
+      return yPosition;
+    };
+  
+    let nextY = finalY + 20;
+    if (nextY + 130 > pageHeight) {
+      pdf.addPage();
+      nextY = 20;
+    }
+    nextY = await addChartToPDF('pie', 'Pie Chart Hasil Pemilihan', nextY);
+  
+    if (nextY + 130 > pageHeight) {
+      pdf.addPage();
+      nextY = 20;
+    }
+    await addChartToPDF('bar', 'Bar Chart Hasil Pemilihan', nextY);
+  
+    pdf.save(`Hasil_Pemilihan_OSIS_${schoolInfo.name}_${currentYear}.pdf`);
+  };
+
+  return (
+    <div className="admin-dashboard">
+      <div className="admin-sidebar">
+        <h1 className="text-2xl font-bold p-4">Admin Dashboard</h1>
+        <nav>
+          <ul className="space-y-2">
+            <li><a href="#school-info" className="block p-2 hover:bg-gray-100">Informasi Sekolah</a></li>
+            <li><a href="#candidates" className="block p-2 hover:bg-gray-100">Daftar Calon</a></li>
+            <li><a href="#statistics" className="block p-2 hover:bg-gray-100">Statistik Pemilihan</a></li>
+            <li><a href="#ranking" className="block p-2 hover:bg-gray-100">Peringkat Kandidat</a></li>
+          </ul>
+        </nav>
+      </div>
+
+      <div className="admin-content">
+        <header className="admin-header">
+          <h1 className="text-3xl font-bold">Dashboard Admin Pemilihan OSIS</h1>
+        </header>
+
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+            <strong className="font-bold">Error: </strong>
+            <span className="block sm:inline">{error}</span>
+          </div>
+        )}
+
+        {/* School Info Section */}
+        <section id="school-info" className="admin-card">
+          <h2 className="text-2xl font-semibold mb-4">Informasi Sekolah</h2>
+          <div className="flex flex-col space-y-4">
+            <input
+              type="text"
+              value={newSchoolName}
+              onChange={(e) => setNewSchoolName(e.target.value)}
+              placeholder="Nama Sekolah"
+              className="admin-input"
+            />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Logo Sekolah
+              </label>
+              <input
+                type="file"
+                onChange={handleSchoolLogoUpload}
+                className="admin-input"
+              />
+            </div>
+            {schoolInfo.logo && (
+              <img 
+                src={schoolInfo.logo} 
+                alt="Logo Sekolah" 
+                className="w-32 h-32 object-contain"
+              />
+            )}
+            <button
+              onClick={handleUpdateSchoolInfo}
+              className="admin-btn admin-btn-primary"
+            >
+              Update Informasi Sekolah
+            </button>
+          </div>
+          <p className="mt-2">Nama Sekolah Saat Ini: <span className="font-semibold">{schoolInfo.name}</span></p>
+        </section>
+
+        {/* Candidates List */}
+        <section id="candidates" className="admin-card">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-semibold">Daftar Calon</h2>
+            <button
+              onClick={() => setIsAddingNewCandidate(true)}
+              className="admin-btn admin-btn-primary"
+            >
+              Tambah Calon
+            </button>
+          </div>
+
+          {isAddingNewCandidate && (
+            <div className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+              <h3 className="text-lg font-semibold mb-4">Tambah Calon Baru</h3>
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="col-span-2 space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <input
+                      type="text"
+                      placeholder="Nama"
+                      value={newCandidate.name}
+                      onChange={(e) => setNewCandidate({ ...newCandidate, name: e.target.value })}
+                      className="admin-input"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Kelas"
+                      value={newCandidate.kelas}
+                      onChange={(e) => setNewCandidate({ ...newCandidate, kelas: e.target.value })}
+                      className="admin-input"
+                    />
+                  </div>
+                  <textarea
+                    placeholder="Visi"
+                    value={newCandidate.vision}
+                    onChange={(e) => setNewCandidate({ ...newCandidate, vision: e.target.value })}
+                    className="admin-textarea"
+                  />
+                  <textarea
+                    placeholder="Misi"
+                    value={newCandidate.mission}
+                    onChange={(e) => setNewCandidate({ ...newCandidate, mission: e.target.value })}
+                    className="admin-textarea"
+                  />
+                </div>
+                <div>
+                  <input
+                    type="file"
+                    onChange={handleFileUpload}
+                    className="admin-input mb-2"
+                    disabled={isUploading}
+                  />
+                  {isUploading && <p className="text-sm text-gray-600">Uploading...</p>}
+                  {previewUrl && (
+                    <img 
+                      src={previewUrl} 
+                      alt="Preview" 
+                      className="w-full h-auto object-cover rounded-md"
+                    />
+                  )}
+                </div>
+              </div>
+              <div className="flex justify-end space-x-2">
+                <button
+                  onClick={() => setIsAddingNewCandidate(false)}
+                  className="admin-btn admin-btn-secondary"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={handleAddCandidate}
+                  className="admin-btn admin-btn-primary"
+                  disabled={isUploading}
+                >
+                  Tambah Calon
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {candidates.map((candidate) => (
+              <div key={candidate.id} className="border border-gray-200 rounded-lg p-4 bg-white shadow-sm">
+                <div className="flex gap-4">
+                  <div className="flex-grow space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        value={candidate.name}
+                        onChange={(e) => handleUpdateCandidate(candidate.id, { name: e.target.value })}
+                        className="admin-input"
+                        placeholder="Nama kandidat"
+                      />
+                      <input
+                        type="text"
+                        value={candidate.kelas}
+                        onChange={(e) => handleUpdateCandidate(candidate.id, { kelas: e.target.value })}
+                        className="admin-input"
+                        placeholder="Kelas kandidat"
+                      />
+                    </div>
+                    <textarea
+                      value={candidate.vision}
+                      onChange={(e) => handleUpdateCandidate(candidate.id, { vision: e.target.value })}
+                      className="admin-textarea"
+                      placeholder="Visi kandidat"
+                    />
+                    <textarea
+                      value={candidate.mission}
+                      onChange={(e) => handleUpdateCandidate(candidate.id, { mission: e.target.value })}
+                      className="admin-textarea"
+                      placeholder="Misi kandidat"
+                    />
+                  </div>
+                  <div className="w-1/3">
+                    <div className="relative group aspect-square">
+                      <img 
+                        src={candidate.photoUrl} 
+                        alt={candidate.name} 
+                        className="w-full h-full object-cover rounded-md"
+                      />
+                      <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-md">
+                        <span className="text-white text-xs">Ganti Foto</span>
+                      </div>
+                      <input
+                        type="file"
+                        onChange={(e) => handleCandidatePhotoUpdate(candidate.id, e)}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        title="Ganti foto"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleDeleteCandidate(candidate)}
+                  className="admin-btn admin-btn-danger mt-3 w-full"
+                >
+                  Hapus
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Voting Statistics */}
+        <section id="statistics" className="admin-card">
+          <h2 className="text-2xl font-semibold mb-4">Statistik Pemilihan</h2>
+          
+          <div className="flex justify-between items-center mb-4">
+            <p className="text-lg font-medium">
+              Total Vote: <span className="font-bold">{totalVotes}</span>
+            </p>
+            <button
+              onClick={() => setChartType(chartType === 'pie' ? 'bar' : 'pie')}
+              className="admin-btn admin-btn-secondary"
+            >
+              Switch to {chartType === 'pie' ? 'Bar' : 'Pie'} Chart
+            </button>
+          </div>
+
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h3 className="text-xl font-semibold mb-2">
+              {chartType === 'pie' ? 'Pie Chart' : 'Bar Chart'}
+            </h3>
+            <div id="chart-container" className="admin-chart-container">
+              <ResponsiveContainer width="100%" height={400}>
+                {chartType === 'pie' ? (
+                  <PieChart>
+                    <Pie
+                      data={candidates}
+                      dataKey="voteCount"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={150}
+                      fill="#8884d8"
+                      label={(entry) => `${entry.name}: ${entry.voteCount}`}
+                    >
+                      {candidates.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                ) : (
+                  <BarChart
+                    data={sortedCandidates}
+                    margin={{
+                      top: 5,
+                      right: 30,
+                      left: 20,
+                      bottom: 5,
+                    }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="voteCount" fill="#8884d8">
+                      {candidates.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                )}
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </section>
+
+        {/* Ranking Table */}
+        <section id="ranking" className="admin-card">
+          <h2 className="text-2xl font-semibold mb-4">Peringkat Kandidat</h2>
+          <div className="overflow-x-auto">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Peringkat</th>
+                  <th>Nama Lengkap</th>
+                  <th>Jumlah Vote</th>
+                  <th>Persentase</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedCandidates.map((candidate, index) => {
+                  const percentage = (candidate.voteCount / totalVotes * 100).toFixed(2);
+                  return (
+                    <tr key={candidate.id}>
+                      <td>{index + 1}</td>
+                      <td>{candidate.name}</td>
+                      <td>
+                        {editableCandidate === candidate.id ? (
+                          <div>
+                            <input
+                              type="number"
+                              value={tempVotes[candidate.id] ?? candidate.voteCount}
+                              onChange={(e) => {
+                                const newVoteCount = parseInt(e.target.value, 10);
+                                if (!isNaN(newVoteCount)) {
+                                  handleVoteChange(candidate.id, newVoteCount);
+                                }
+                              }}
+                              onBlur={() => handleVoteUpdate(candidate.id)}
+                              className="admin-input w-20"
+                              min="0"
+                              autoFocus
+                            />
+                          </div>
+                        ) : (
+                          <span 
+                            onClick={() => handleVoteClick(candidate.id)}
+                            className="cursor-pointer"
+                            title={`Klik ${3 - (clickCount[candidate.id] || 0)} kali lagi untuk mengedit`}
+                          >
+                            {candidate.voteCount}
+                          </span>
+                        )}
+                      </td>
+                      <td>{percentage}%</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        {/* Action Buttons */}
+        <div className="mt-8 flex justify-end items-center space-x-4">
+          <button
+            onClick={exportToPDF}
+            className="admin-btn admin-btn-primary"
+          >
+            Export PDF
+          </button>
+          
+          <button
+            onClick={resetVotes}
+            className="admin-btn admin-btn-warning"
+          >
+            Reset Vote
+          </button>
+          
+          <button
+            onClick={() => setShowResetConfirmation(true)}
+            className="admin-btn admin-btn-danger"
+          >
+            Delete All
+          </button>
+        </div>
+
+        {resetNotification && (
+          <div className="mt-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative" role="alert">
+            <span className="block sm:inline">{resetNotification}</span>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteConfirmation && candidateToDelete && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full" id="delete-modal">
+            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+              <div className="mt-3 text-center">
+                <h3 className="text-lg leading-6 font-medium text-gray-900">Konfirmasi Hapus Kandidat</h3>
+                <div className="mt-2 px-7 py-3">
+                  <p className="text-sm text-gray-500">
+                    Apakah Anda yakin ingin menghapus kandidat {candidateToDelete.name}?
+                  </p>
+                </div>
+                <div className="items-center px-4 py-3">
+                  <button
+                    onClick={confirmDeleteCandidate}
+                    className="px-4 py-2 bg-red-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 mb-2"
+                  >
+                    Ya, Hapus Kandidat
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowDeleteConfirmation(false);
+                      setCandidateToDelete(null);
+                    }}
+                    className="px-4 py-2 bg-gray-300 text-gray-800 text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300"
+                  >
+                    Batal
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Reset Confirmation Modal */}
+        {showResetConfirmation && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full" id="my-modal">
+            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+              <div className="mt-3 text-center">
+                <h3 className="text-lg leading-6 font-medium text-gray-900">Konfirmasi Reset Data</h3>
+                <div className="mt-2 px-7 py-3">
+                  <p className="text-sm text-gray-500">
+                    Apakah Anda yakin ingin mereset semua data? Tindakan ini akan menghapus semua kandidat dan tidak dapat dibatalkan.
+                  </p>
+                </div>
+                <div className="items-center px-4 py-3">
+                  <button
+                    id="ok-btn"
+                    className="px-4 py-2 bg-red-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300"
+                    onClick={handleResetData}
+                  >
+                    Ya, Reset Data
+                  </button>
+                  <button
+                    id="cancel-btn"
+                    className="mt-3 px-4 py-2 bg-gray-300 text-gray-800 text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300"
+                    onClick={() => setShowResetConfirmation(false)}
+                  >
+                    Batal
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default AdminPage;
