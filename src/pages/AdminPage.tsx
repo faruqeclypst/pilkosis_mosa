@@ -1,7 +1,9 @@
 // src/pages/AdminPage.tsx
 
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, doc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { FaSchool, FaUsers, FaChartBar, FaTrophy, FaSignOutAlt } from 'react-icons/fa';
+import { useNavigate } from 'react-router-dom';
+import { collection, onSnapshot, doc, deleteDoc, writeBatch, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { Candidate, SchoolInfo } from '../types';
 import SchoolInfoSection from '../components/admin/SchoolInfoSection';
@@ -13,8 +15,10 @@ import DeleteConfirmationModal from '../components/admin/DeleteConfirmationModal
 import ResetConfirmationModal from '../components/admin/ResetConfirmationModal';
 import ResetVoteConfirmationModal from '../components/admin/ResetVoteConfirmationModal';
 import { exportToPDF } from '../utils/pdfExport';
+import '../assets/css/AdminTable.css';
 
 const AdminPage: React.FC = () => {
+  const navigate = useNavigate();
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [schoolInfo, setSchoolInfo] = useState<SchoolInfo>({ name: '', logo: '' });
   const [error, setError] = useState<string | null>(null);
@@ -25,18 +29,42 @@ const AdminPage: React.FC = () => {
   const [resetNotification, setResetNotification] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, 'candidates'), (snapshot) => {
-      const candidatesData: Candidate[] = [];
-      snapshot.forEach((doc) => {
-        candidatesData.push({ id: doc.id, ...doc.data() } as Candidate);
-      });
-      setCandidates(candidatesData);
-    }, (err) => {
-      setError('Error fetching candidates: ' + err.message);
-    });
+    const authStatus = localStorage.getItem('isAuthenticated');
+    if (authStatus !== 'true') {
+      navigate('/login', { replace: true });
+    }
 
-    return () => unsubscribe();
-  }, []);
+    const fetchCandidates = () => {
+      const unsubscribe = onSnapshot(collection(db, 'candidates'), (snapshot) => {
+        const candidatesData: Candidate[] = [];
+        snapshot.forEach((doc) => {
+          candidatesData.push({ id: doc.id, ...doc.data() } as Candidate);
+        });
+        setCandidates(candidatesData);
+      }, (err) => {
+        setError('Error fetching candidates: ' + err.message);
+      });
+      return unsubscribe;
+    };
+
+    const fetchSchoolInfo = async () => {
+      try {
+        const schoolInfoDoc = await getDoc(doc(db, 'schoolInfo', 'info'));
+        if (schoolInfoDoc.exists()) {
+          setSchoolInfo(schoolInfoDoc.data() as SchoolInfo);
+        }
+      } catch (err) {
+        setError('Error fetching school info: ' + (err as Error).message);
+      }
+    };
+
+    const unsubscribeCandidates = fetchCandidates();
+    fetchSchoolInfo();
+
+    return () => {
+      unsubscribeCandidates();
+    };
+  }, [navigate]);
 
   const handleDeleteCandidate = (candidate: Candidate) => {
     setCandidateToDelete(candidate);
@@ -100,77 +128,104 @@ const AdminPage: React.FC = () => {
     exportToPDF(candidates, schoolInfo);
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('isAuthenticated');
+    navigate('/login', { replace: true });
+  };
+
   return (
-    <div className="admin-dashboard">
-      <div className="admin-sidebar">
-        <h1 className="text-2xl font-bold p-4">Admin Dashboard</h1>
-        <nav>
-          <ul className="space-y-2">
-            <li><a href="#school-info" className="block p-2 hover:bg-gray-100">Informasi Sekolah</a></li>
-            <li><a href="#candidates" className="block p-2 hover:bg-gray-100">Daftar Calon</a></li>
-            <li><a href="#statistics" className="block p-2 hover:bg-gray-100">Statistik Pemilihan</a></li>
-            <li><a href="#ranking" className="block p-2 hover:bg-gray-100">Peringkat Kandidat</a></li>
-          </ul>
-        </nav>
+    <div className="flex h-screen bg-gray-100">
+      {/* Sidebar */}
+      <div className="w-64 bg-blue-800 text-white">
+        <div className="p-6">
+          <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+        </div>
+        <nav className="mt-6">
+  {[
+    { text: "Informasi Sekolah", href: "#school-info", icon: <FaSchool /> },
+    { text: "Daftar Calon", href: "#candidates", icon: <FaUsers /> },
+    { text: "Statistik Pemilihan", href: "#statistics", icon: <FaChartBar /> },
+    { text: "Peringkat Kandidat", href: "#ranking", icon: <FaTrophy /> },
+  ].map((item, index) => (
+    <a 
+      key={index} 
+      href={item.href} 
+      className="flex items-center py-3 px-6 hover:bg-blue-700 transition-colors duration-200"
+    >
+      <span className="mr-3">{item.icon}</span>
+      {item.text}
+    </a>
+  ))}
+  <button
+    onClick={handleLogout}
+    className="w-full flex items-center text-left py-3 px-6 hover:bg-blue-700 transition-colors duration-200"
+  >
+    <FaSignOutAlt className="mr-3" />
+    Logout
+  </button>
+</nav>
       </div>
 
-      <div className="admin-content">
-        <header className="admin-header">
-          <h1 className="text-3xl font-bold">Dashboard Admin Pemilihan OSIS</h1>
-        </header>
+      {/* Main Content */}
+      <div className="flex-1 overflow-y-auto">
+        <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+          {/* Error Message */}
+          {error && (
+            <div className="mb-4 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md" role="alert">
+              <p className="font-bold">Error</p>
+              <p>{error}</p>
+            </div>
+          )}
 
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-            <strong className="font-bold">Error: </strong>
-            <span className="block sm:inline">{error}</span>
+          {/* Dashboard Sections */}
+          <div className="space-y-8">
+            <SchoolInfoSection schoolInfo={schoolInfo} setSchoolInfo={setSchoolInfo} setError={setError} />
+            <CandidateList 
+              candidates={candidates} 
+              onDelete={handleDeleteCandidate} 
+              setError={setError}
+            />
+            <StatisticsSection candidates={candidates} />
+            <RankingTable candidates={candidates} />
+            <ActionButtons 
+              onExportPDF={handleExportToPDF} 
+              onResetVotes={() => setShowResetVoteConfirmation(true)} 
+              onDeleteAll={() => setShowResetConfirmation(true)} 
+            />
           </div>
-        )}
 
-        <SchoolInfoSection schoolInfo={schoolInfo} setSchoolInfo={setSchoolInfo} setError={setError} />
-        
-        <CandidateList 
-          candidates={candidates} 
-          onDelete={handleDeleteCandidate} 
-          setError={setError}
-        />
-        
-        <StatisticsSection candidates={candidates} />
-        <RankingTable candidates={candidates} />
-        
-        <ActionButtons 
-          onExportPDF={handleExportToPDF} 
-          onResetVotes={() => setShowResetVoteConfirmation(true)} 
-          onDeleteAll={() => setShowResetConfirmation(true)} 
-        />
-
-        {resetNotification && (
-          <div className="mt-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative" role="alert">
-            <span className="block sm:inline">{resetNotification}</span>
-          </div>
-        )}
-
-        <DeleteConfirmationModal 
-          show={showDeleteConfirmation} 
-          candidate={candidateToDelete} 
-          onConfirm={confirmDeleteCandidate} 
-          onCancel={() => {
-            setShowDeleteConfirmation(false);
-            setCandidateToDelete(null);
-          }} 
-        />
-
-        <ResetConfirmationModal 
-          show={showResetConfirmation} 
-          onConfirm={handleResetData} 
-          onCancel={() => setShowResetConfirmation(false)} 
-        />
-
-        <ResetVoteConfirmationModal 
-          show={showResetVoteConfirmation} 
-          onConfirm={handleResetVotes} 
-          onCancel={() => setShowResetVoteConfirmation(false)} 
-        />
+          {/* Reset Notification */}
+          {resetNotification && (
+            <div className="mt-4 bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded-md" role="alert">
+              <p className="font-bold">Sukses</p>
+              <p>{resetNotification}</p>
+            </div>
+          )}
+        </main>
       </div>
+
+      {/* Modals */}
+      <DeleteConfirmationModal 
+        show={showDeleteConfirmation} 
+        candidate={candidateToDelete} 
+        onConfirm={confirmDeleteCandidate} 
+        onCancel={() => {
+          setShowDeleteConfirmation(false);
+          setCandidateToDelete(null);
+        }} 
+      />
+
+      <ResetConfirmationModal 
+        show={showResetConfirmation} 
+        onConfirm={handleResetData} 
+        onCancel={() => setShowResetConfirmation(false)} 
+      />
+
+      <ResetVoteConfirmationModal 
+        show={showResetVoteConfirmation} 
+        onConfirm={handleResetVotes} 
+        onCancel={() => setShowResetVoteConfirmation(false)} 
+      />
     </div>
   );
 };

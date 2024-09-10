@@ -1,6 +1,6 @@
 // src/components/admin/SchoolInfoSection.tsx
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { doc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../services/firebase';
@@ -13,16 +13,30 @@ interface SchoolInfoSectionProps {
 }
 
 const SchoolInfoSection: React.FC<SchoolInfoSectionProps> = ({ schoolInfo, setSchoolInfo, setError }) => {
-  const [newSchoolName, setNewSchoolName] = useState('');
+  const [newSchoolName, setNewSchoolName] = useState(schoolInfo.name);
   const [newSchoolLogo, setNewSchoolLogo] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(schoolInfo.logo);
 
+  useEffect(() => {
+    setNewSchoolName(schoolInfo.name);
+    setPreviewUrl(schoolInfo.logo);
+  }, [schoolInfo]);
+
+  // Handle file upload and generate preview
   const handleSchoolLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       setNewSchoolLogo(file);
+      // Generate preview URL
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviewUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
+  // Handle updating school info
   const handleUpdateSchoolInfo = async () => {
     try {
       const schoolInfoRef = doc(db, 'schoolInfo', 'info');
@@ -35,13 +49,12 @@ const SchoolInfoSection: React.FC<SchoolInfoSectionProps> = ({ schoolInfo, setSc
       }
 
       const updatedSchoolInfo: SchoolInfo = {
-        name: newSchoolName || schoolInfo.name,
+        name: newSchoolName,
         logo: logoUrl
       };
 
       await setDoc(schoolInfoRef, updatedSchoolInfo, { merge: true });
       setSchoolInfo(updatedSchoolInfo);
-      setNewSchoolName('');
       setNewSchoolLogo(null);
       console.log('School info updated successfully');
     } catch (err) {
@@ -51,42 +64,60 @@ const SchoolInfoSection: React.FC<SchoolInfoSectionProps> = ({ schoolInfo, setSc
   };
 
   return (
-    <section id="school-info" className="admin-card">
-      <h2 className="text-2xl font-semibold mb-4">Informasi Sekolah</h2>
-      <div className="flex flex-col space-y-4">
-        <input
-          type="text"
-          value={newSchoolName}
-          onChange={(e) => setNewSchoolName(e.target.value)}
-          placeholder="Nama Sekolah"
-          className="admin-input"
-        />
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 admin-card">
+      {/* School Info Card */}
+      <section className="admin-card">
+        <h2 className="text-2xl font-semibold mb-4">Informasi Sekolah</h2>
+        <div className="mb-4">
+          <label htmlFor="schoolName" className="block text-sm font-medium text-gray-700 mb-2">
+            Nama Sekolah
+          </label>
+          <input
+            id="schoolName"
+            type="text"
+            value={newSchoolName}
+            onChange={(e) => setNewSchoolName(e.target.value)}
+            className="border rounded px-2 py-1 w-full"
+          />
+        </div>
+        <div className="mb-4">
+          <label htmlFor="schoolLogo" className="block text-sm font-medium text-gray-700 mb-2">
             Logo Sekolah
           </label>
           <input
+            id="schoolLogo"
             type="file"
             onChange={handleSchoolLogoUpload}
-            className="admin-input"
+            className="border rounded px-2 py-1 w-full"
           />
         </div>
-        {schoolInfo.logo && (
-          <img 
-            src={schoolInfo.logo} 
-            alt="Logo Sekolah" 
-            className="w-32 h-32 object-contain"
-          />
-        )}
         <button
           onClick={handleUpdateSchoolInfo}
-          className="admin-btn admin-btn-primary"
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors"
         >
           Update Informasi Sekolah
         </button>
-      </div>
-      <p className="mt-2">Nama Sekolah Saat Ini: <span className="font-semibold">{schoolInfo.name}</span></p>
-    </section>
+        <p className="mt-4">Nama Sekolah Saat Ini: <span className="font-semibold">{schoolInfo.name}</span></p>
+      </section>
+
+      {/* Logo Preview Card */}
+      <section className="admin-card">
+        <h2 className="text-2xl font-semibold mb-4">Logo Sekolah</h2>
+        <div className="flex items-center justify-center h-64">
+          {previewUrl ? (
+            <img 
+              src={previewUrl} 
+              alt="Preview Logo Sekolah" 
+              className="max-w-full max-h-full object-contain"
+            />
+          ) : (
+            <div className="text-gray-500">
+              No logo uploaded
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
   );
 };
 

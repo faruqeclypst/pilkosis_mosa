@@ -22,7 +22,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({ onExportPDF, onResetVotes
           onClick={onResetVotes}
           className="admin-btn admin-btn-warning"
         >
-          Reset Vote
+          Reset Votes
         </button>
         
         <button

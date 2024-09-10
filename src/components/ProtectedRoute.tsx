@@ -1,58 +1,146 @@
 // src/components/ProtectedRoute.tsx
 
-import React, { useState } from 'react';
-// Uncomment jika diperlukan di masa depan:
-// import { Navigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Navigate } from 'react-router-dom';
+import { FaLock, FaUser, FaExclamationTriangle } from 'react-icons/fa';
 
-interface ProtectedRouteProps {
-  children: React.ReactNode;
+// Interface untuk props AlertModal
+interface AlertModalProps {
+  show: boolean;
+  message: string;
+  onClose: () => void;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [password, setPassword] = useState('');
+// Komponen AlertModal
+const AlertModal: React.FC<AlertModalProps> = ({ show, message, onClose }) => {
+  if (!show) return null;
 
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm overflow-y-auto h-full w-full flex items-center justify-center z-50" id="alert-modal">
+      <div className="relative p-6 border-0 rounded-lg shadow-lg bg-white sm:w-96 mx-auto">
+        <div className="text-center">
+          <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4">
+            <FaExclamationTriangle className="h-8 w-8 text-red-600" />
+          </div>
+          <h3 className="text-xl leading-6 font-bold text-gray-900 mb-2">Login Error</h3>
+          <p className="text-sm text-gray-500 mb-4">{message}</p>
+          <button
+            className="w-full px-4 py-2 bg-red-600 text-white text-base font-medium rounded-md shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-300 transition duration-300 ease-in-out"
+            onClick={onClose}
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Komponen ProtectedRoute
+const ProtectedRoute: React.FC = () => {
+  // State hooks
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [showAlert, setShowAlert] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
+
+  // Effect untuk memeriksa status otentikasi
+  useEffect(() => {
+    const authStatus = localStorage.getItem('isAuthenticated');
+    setIsAuthenticated(authStatus === 'true');
+  }, []);
+
+  // Handler untuk login
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Ganti 'admin123' dengan password yang lebih aman
-    if (password === 'admin123') {
+    if (username === 'admin' && password === 'admin123') {
       setIsAuthenticated(true);
+      localStorage.setItem('isAuthenticated', 'true');
     } else {
-      alert('Password salah!');
+      setAlertMessage('Username atau password salah!');
+      setShowAlert(true);
     }
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <form onSubmit={handleLogin} className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="password">
+  // Tampilkan loading jika status otentikasi belum diketahui
+  if (isAuthenticated === null) {
+    return <div className="flex justify-center items-center h-screen">Loading...</div>;
+  }
+
+  // Redirect ke halaman admin jika sudah terotentikasi
+  if (isAuthenticated) {
+    return <Navigate to="/admin" replace />;
+  }
+
+  // Render form login
+  return (
+    <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-blue-500 to-purple-600">
+      <div className="w-full max-w-md p-8 bg-white rounded-xl shadow-2xl transform transition-all hover:scale-105 duration-300">
+        <h2 className="text-3xl font-extrabold text-center text-gray-800 mb-8">Login</h2>
+        
+        <form onSubmit={handleLogin} className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700" htmlFor="username">
+              Username
+            </label>
+            <div className="mt-1 relative rounded-md shadow-sm">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <FaUser className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition duration-150 ease-in-out"
+                id="username"
+                type="text"
+                placeholder="Enter your username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+            </div>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700" htmlFor="password">
               Password
             </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="password"
-              type="password"
-              placeholder="Masukkan password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+            <div className="mt-1 relative rounded-md shadow-sm">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <FaLock className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition duration-150 ease-in-out"
+                id="password"
+                type="password"
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
           </div>
-          <div className="flex items-center justify-between">
+          
+          <div>
             <button
-              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out"
               type="submit"
             >
-              Login
+              Sign In
             </button>
           </div>
         </form>
+        
+        <p className="mt-8 text-center text-sm text-gray-600">
+          &copy;{new Date().getFullYear()} Alfaruq Asri, S.Pd ~ SMAN Modal Bangsa. 
+          <span className="block">All rights reserved.</span>
+        </p>
       </div>
-    );
-  }
 
-  return <>{children}</>;
+      <AlertModal
+        show={showAlert}
+        message={alertMessage}
+        onClose={() => setShowAlert(false)}
+      />
+    </div>
+  );
 };
 
 export default ProtectedRoute;
