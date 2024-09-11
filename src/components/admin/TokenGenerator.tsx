@@ -1,41 +1,59 @@
 import React, { useState, useEffect } from 'react';
-import { collection, writeBatch, doc, getDocs, deleteDoc, updateDoc, getDoc } from 'firebase/firestore';
+import { ref, onValue, push, remove, update, get } from 'firebase/database';
 import { db } from '../../services/firebase';
 import { Token } from '../../types';
 import { saveAs } from 'file-saver';
+import { ChevronLeft, ChevronRight, Search, ArrowUpDown } from 'lucide-react';
+import '../../assets/css/AdminTable.css';
 
 interface TokenGeneratorProps {
   setError: (error: string | null) => void;
 }
 
 const TokenGenerator: React.FC<TokenGeneratorProps> = ({ setError }) => {
-  const [tokenCount, setTokenCount] = useState(700);
+  const [tokenCount, setTokenCount] = useState(5);
   const [generatingTokens, setGeneratingTokens] = useState(false);
   const [tokens, setTokens] = useState<Token[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [tokenToDelete, setTokenToDelete] = useState<Token | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [tokensPerPage] = useState(5);
+
+  // Sorting state
+  const [sortConfig, setSortConfig] = useState<{ key: keyof Token | 'number'; direction: 'ascending' | 'descending' } | null>(null);
 
   useEffect(() => {
     fetchTokens();
   }, []);
 
-  const fetchTokens = async () => {
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  const fetchTokens = () => {
     setLoading(true);
-    try {
-      const tokensSnapshot = await getDocs(collection(db, 'tokens'));
-      const tokensData = tokensSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as Token));
+    const tokensRef = ref(db, 'tokens');
+    onValue(tokensRef, (snapshot) => {
+      const tokensData: Token[] = Array.from(
+        Object.entries(snapshot.val() || {}),
+        ([id, value], index) => ({
+          id,
+          originalIndex: index,
+          ...(value as Omit<Token, 'id' | 'originalIndex'>)
+        })
+      );
       setTokens(tokensData);
-    } catch (error) {
+      setLoading(false);
+    }, (error) => {
       console.error("Error fetching tokens: ", error);
       setError('Gagal mengambil data token');
-    } finally {
       setLoading(false);
-    }
+    });
   };
 
   const generateToken = () => {
@@ -45,35 +63,31 @@ const TokenGenerator: React.FC<TokenGeneratorProps> = ({ setError }) => {
     
     let token = '';
     
-    // Generate 3 random letters
     for (let i = 0; i < 3; i++) {
       token += letters.charAt(Math.floor(Math.random() * letters.length));
     }
     
-    // Add 1 random number
     token += numbers.charAt(Math.floor(Math.random() * numbers.length));
-    
-    // Add 1 random symbol
     token += symbols.charAt(Math.floor(Math.random() * symbols.length));
     
-    // Shuffle the token
     return token.split('').sort(() => Math.random() - 0.5).join('');
   };
 
   const generateTokens = async () => {
     setGeneratingTokens(true);
-    const batch = writeBatch(db);
     const newTokens: string[] = [];
-
-    for (let i = 0; i < tokenCount; i++) {
-      const token = generateToken();
-      const tokenRef = doc(collection(db, 'tokens'));
-      batch.set(tokenRef, { token, used: false, candidateId: null });
-      newTokens.push(token);
-    }
+    const tokensRef = ref(db, 'tokens');
 
     try {
-      await batch.commit();
+      for (let i = 0; i < tokenCount; i++) {
+        const token = generateToken();
+        newTokens.push(token);
+        await push(tokensRef, {
+          token,
+          used: false,
+          candidateId: null
+        });
+      }
       console.log(`${tokenCount} token berhasil digenerate`);
       exportTokensToCSV(newTokens);
       fetchTokens();
@@ -99,7 +113,7 @@ const TokenGenerator: React.FC<TokenGeneratorProps> = ({ setError }) => {
   const confirmDeleteToken = async () => {
     if (tokenToDelete) {
       try {
-        await deleteDoc(doc(db, 'tokens', tokenToDelete.id));
+        await remove(ref(db, `tokens/${tokenToDelete.id}`));
         fetchTokens();
         setShowDeleteConfirmation(false);
         setTokenToDelete(null);
@@ -112,29 +126,27 @@ const TokenGenerator: React.FC<TokenGeneratorProps> = ({ setError }) => {
 
   const handleUpdateToken = async (id: string, used: boolean) => {
     try {
-      const tokenRef = doc(db, 'tokens', id);
-      const tokenSnap = await getDoc(tokenRef);
-      const tokenData = tokenSnap.data() as Token;
+      const tokenRef = ref(db, `tokens/${id}`);
+      const snapshot = await get(tokenRef);
+      const tokenData = snapshot.val() as Token;
 
       if (used && !tokenData.used) {
-        // Token sedang diatur menjadi digunakan
-        await updateDoc(tokenRef, { used: true });
+        await update(tokenRef, { used: true });
       } else if (!used && tokenData.used) {
-        // Token sedang diatur menjadi belum digunakan, kita perlu membatalkan vote
         if (tokenData.candidateId) {
-          const candidateRef = doc(db, 'candidates', tokenData.candidateId);
-          const candidateSnap = await getDoc(candidateRef);
-          const candidateData = candidateSnap.data();
+          const candidateRef = ref(db, `candidates/${tokenData.candidateId}`);
+          const candidateSnapshot = await get(candidateRef);
+          const candidateData = candidateSnapshot.val();
           if (candidateData && candidateData.voteCount > 0) {
-            await updateDoc(candidateRef, {
+            await update(candidateRef, {
               voteCount: candidateData.voteCount - 1
             });
           }
         }
-        await updateDoc(tokenRef, { used: false, candidateId: null });
+        await update(tokenRef, { used: false, candidateId: null });
       }
 
-      fetchTokens(); // Refresh token list
+      fetchTokens();
     } catch (error) {
       console.error("Error updating token: ", error);
       setError('Gagal mengupdate status token');
@@ -145,12 +157,8 @@ const TokenGenerator: React.FC<TokenGeneratorProps> = ({ setError }) => {
     setShowDeleteConfirmation(false);
     setLoading(true);
     try {
-      const batch = writeBatch(db);
-      tokens.forEach((token) => {
-        const tokenRef = doc(db, 'tokens', token.id);
-        batch.delete(tokenRef);
-      });
-      await batch.commit();
+      const tokensRef = ref(db, 'tokens');
+      await remove(tokensRef);
       console.log('All tokens deleted successfully');
       fetchTokens();
     } catch (error) {
@@ -167,15 +175,76 @@ const TokenGenerator: React.FC<TokenGeneratorProps> = ({ setError }) => {
     setRefreshing(false);
   };
 
+  // Search function
+  const filteredTokens = tokens.filter(token =>
+    token.token.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Sorting function
+  const sortTokens = (tokensToSort: Token[]) => {
+    if (sortConfig !== null) {
+      return [...tokensToSort].sort((a, b) => {
+        if (sortConfig.key === 'number') {
+          return sortConfig.direction === 'ascending' 
+            ? a.originalIndex - b.originalIndex
+            : b.originalIndex - a.originalIndex;
+        }
+        if (sortConfig.key === 'used') {
+          return sortConfig.direction === 'ascending'
+            ? (a.used === b.used ? 0 : a.used ? 1 : -1)
+            : (a.used === b.used ? 0 : a.used ? -1 : 1);
+        }
+        // Gunakan optional chaining dan nullish coalescing operator
+        const aValue = a[sortConfig.key] ?? '';
+        const bValue = b[sortConfig.key] ?? '';
+        if (aValue < bValue) {
+          return sortConfig.direction === 'ascending' ? -1 : 1;
+        }
+        if (aValue > bValue) {
+          return sortConfig.direction === 'ascending' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+    return tokensToSort;
+  };
+
+  // Request sort function
+  const requestSort = (key: keyof Token | 'number') => {
+    let direction: 'ascending' | 'descending' = 'ascending';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
+      direction = 'descending';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  // Sort tokens
+  const sortedTokens = sortTokens(filteredTokens);
+
+  // Pagination logic
+  const indexOfLastToken = currentPage * tokensPerPage;
+  const indexOfFirstToken = indexOfLastToken - tokensPerPage;
+  const currentTokens = sortedTokens.slice(indexOfFirstToken, indexOfLastToken);
+
+  const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
+
+  // Get sort direction
+  const getSortDirection = (key: keyof Token | 'number') => {
+    if (sortConfig && sortConfig.key === key) {
+      return sortConfig.direction === 'ascending' ? '↑' : '↓';
+    }
+    return '';
+  };
+
   return (
     <div className="mt-8 bg-white p-6 rounded-lg shadow-md">
-      <h2 className="text-2xl font-bold mb-4">Generate Token Voting</h2>
-      <div className="flex items-center space-x-4 mb-6">
+      <h2 className="text-2xl text-blue-600 font-bold mb-4">Generate Token Voting</h2>
+      <div className="flex flex-wrap items-center gap-4 mb-6">
         <input
           type="number"
           value={tokenCount}
           onChange={(e) => setTokenCount(parseInt(e.target.value))}
-          className="border rounded px-3 py-2 w-40"
+          className="border rounded px-3 py-2 w-24"
           min="1"
         />
         <button
@@ -206,55 +275,100 @@ const TokenGenerator: React.FC<TokenGeneratorProps> = ({ setError }) => {
         Token akan diekspor ke file CSV setelah di-generate.
       </p>
 
-      <h3 className="text-xl font-bold mb-2">Status Penggunaan Token</h3>
+      <h3 className="text-l text-blue-600 font-bold mb-2">Status Penggunaan Token</h3>
       <p className="mb-2 text-sm text-gray-600">
         Klik "Set Digunakan" untuk menandai token telah digunakan, atau "Set Belum Digunakan" untuk mereset status token.
       </p>
+
+      <div className="mb-4 relative">
+        <input
+          type="text"
+          placeholder="Cari token..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full border rounded px-3 py-2 pl-10"
+        />
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+      </div>
+
       {loading ? (
-        <p>Loading tokens...</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full bg-white">
-            <thead>
-              <tr>
-                <th className="px-4 py-2 border">No</th>
-                <th className="px-4 py-2 border">Token</th>
-                <th className="px-4 py-2 border">Status</th>
-                <th className="px-4 py-2 border">Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tokens.map((token, index) => (
-                <tr key={token.id}>
-                  <td className="px-4 py-2 border">{index + 1}</td>
-                  <td className="px-4 py-2 border">{token.token}</td>
-                  <td className={`px-4 py-2 border ${token.used ? 'text-red-500' : 'text-green-500'}`}>
-                    {token.used ? 'Digunakan' : 'Belum Digunakan'}
-                  </td>
-                  <td className="px-4 py-2 border">
-                    <button
-                      onClick={() => handleUpdateToken(token.id, !token.used)}
-                      className={`px-2 py-1 rounded mr-2 ${
-                        token.used
-                          ? 'bg-green-500 hover:bg-green-600'
-                          : 'bg-red-500 hover:bg-red-600'
-                      } text-white`}
-                    >
-                      {token.used ? 'Set Belum Digunakan' : 'Set Digunakan'}
-                    </button>
-                    <button
-                      onClick={() => handleDeleteToken(token)}
-                      className="bg-gray-500 text-white px-2 py-1 rounded hover:bg-gray-600"
-                    >
-                      Hapus
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+  <p>Loading tokens...</p>
+) : (
+  <div className="overflow-x-auto">
+    <table className="admin-table">
+      <thead>
+        <tr>
+          <th>
+            <button onClick={() => requestSort('number')} className="flex items-center">
+              No <ArrowUpDown size={16} className="ml-1" />
+              {getSortDirection('number')}
+            </button>
+          </th>
+          <th>
+            <button onClick={() => requestSort('token')} className="flex items-center">
+              Token <ArrowUpDown size={16} className="ml-1" />
+              {getSortDirection('token')}
+            </button>
+          </th>
+          <th>
+            <button onClick={() => requestSort('used')} className="flex items-center">
+              Status <ArrowUpDown size={16} className="ml-1" />
+              {getSortDirection('used')}
+            </button>
+          </th>
+          <th>Aksi</th>
+        </tr>
+      </thead>
+      <tbody>
+      {currentTokens.map((token) => (
+    <tr key={token.id}>
+      <td>{token.originalIndex + 1}</td>
+      <td>{token.token}</td>
+      <td className={token.used ? 'text-blue-500' : 'text-green-500'}>
+        {token.used ? 'Digunakan' : 'Belum Digunakan'}
+      </td>
+            <td>
+              <button
+                onClick={() => handleUpdateToken(token.id, !token.used)}
+                className={`admin-btn mr-2 ${
+                  token.used ? 'admin-btn-success' : 'admin-btn-primary'
+                }`}
+              >
+                {token.used ? 'Set Belum Digunakan' : 'Set Digunakan'}
+              </button>
+              <button
+                onClick={() => handleDeleteToken(token)}
+                className="admin-btn admin-btn-danger"
+              >
+                Hapus
+              </button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+)}
+
+      <div className="mt-4 flex justify-between items-center">
+        <button
+          onClick={() => paginate(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="bg-gray-300 text-gray-700 px-3 py-1 rounded hover:bg-gray-400 disabled:bg-gray-200"
+        >
+          <ChevronLeft size={20} />
+        </button>
+        <span>
+          Page {currentPage} of {Math.ceil(sortedTokens.length / tokensPerPage)}
+        </span>
+        <button
+          onClick={() => paginate(currentPage + 1)}
+          disabled={currentPage === Math.ceil(sortedTokens.length / tokensPerPage)}
+          className="bg-gray-300 text-gray-700 px-3 py-1 rounded hover:bg-gray-400 disabled:bg-gray-200"
+        >
+          <ChevronRight size={20} />
+        </button>
+      </div>
 
       {showDeleteConfirmation && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">

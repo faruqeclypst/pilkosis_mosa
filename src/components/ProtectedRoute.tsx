@@ -77,7 +77,7 @@ const ProtectedRoute: React.FC = () => {
   return (
     <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-blue-500 to-purple-600">
       <div className="w-full max-w-md p-8 bg-white rounded-xl shadow-2xl transform transition-all hover:scale-105 duration-300">
-        <h2 className="text-3xl font-extrabold text-center text-gray-800 mb-8">Login</h2>
+        <h2 className="text-3xl font-extrabold text-center text-gray-800 mb-8">Login Admin</h2>
         
         <form onSubmit={handleLogin} className="space-y-6">
           <div>
@@ -128,9 +128,9 @@ const ProtectedRoute: React.FC = () => {
           </div>
         </form>
         
-        <p className="mt-8 text-center text-sm text-gray-600">
-          &copy;{new Date().getFullYear()} Alfaruq Asri, S.Pd ~ SMAN Modal Bangsa. 
-          <span className="block">All rights reserved.</span>
+        <p className="mt-8 text-center text-sm font-bold text-gray-600">
+          &copy;{new Date().getFullYear()} Alfaruq Asri, S.Pd. 
+          <span className="block">SMAN Modal Bangsa. All rights reserved.</span>
         </p>
       </div>
 

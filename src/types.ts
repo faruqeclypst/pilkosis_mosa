@@ -1,4 +1,4 @@
-// src/types/index.ts
+// src/types.ts
 
 export interface Candidate {
     id: string;
@@ -19,4 +19,5 @@ export interface Candidate {
     token: string;
     used: boolean;
     candidateId: string | null;
+    originalIndex: number;
   }

@@ -1,7 +1,7 @@
 // src/pages/LandingPage.tsx
 
 import React, { useEffect, useState } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
+import { ref, get } from 'firebase/database';
 import { db } from '../services/firebase';
 import Hero from '../components/Hero';
 import { SchoolInfo } from '../types';
@@ -11,12 +11,12 @@ const LandingPage: React.FC = () => {
   const [typedName, setTypedName] = useState('');
 
   useEffect(() => {
-    // Mengambil informasi sekolah dari Firestore
+    // Mengambil informasi sekolah dari Realtime Database
     const fetchSchoolInfo = async () => {
-      const schoolInfoRef = doc(db, 'schoolInfo', 'info');
-      const docSnap = await getDoc(schoolInfoRef);
-      if (docSnap.exists()) {
-        setSchoolInfo(docSnap.data() as SchoolInfo);
+      const schoolInfoRef = ref(db, 'schoolInfo/info');
+      const snapshot = await get(schoolInfoRef);
+      if (snapshot.exists()) {
+        setSchoolInfo(snapshot.val() as SchoolInfo);
       }
     };
 

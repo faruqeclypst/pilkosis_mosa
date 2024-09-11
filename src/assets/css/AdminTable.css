@@ -45,6 +45,10 @@
   @apply bg-blue-500 text-white hover:bg-blue-600;
 }
 
+.admin-btn-success {
+  @apply bg-green-500 text-white hover:bg-green-600;
+}
+
 .admin-btn-secondary {
   @apply bg-gray-200 text-gray-700 hover:bg-gray-300;
 }

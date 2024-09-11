@@ -1,24 +1,19 @@
 // src/services/firebase.ts
 
 import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
+import { getDatabase } from 'firebase/database';
 import { getStorage } from 'firebase/storage';
 
-// TODO: Ganti dengan konfigurasi Firebase Anda
 const firebaseConfig = {
-  apiKey: "AIzaSyDX8goy2zIiOMBjWev3zNiZXmxK5E5W038",
-  authDomain: "pilkosis-mosa.firebaseapp.com",
-  projectId: "pilkosis-mosa",
-  storageBucket: "pilkosis-mosa.appspot.com",
-  messagingSenderId: "367877705611",
-  appId: "1:367877705611:web:9b2dc9506fd3c8b26b698e"
+  apiKey: "AIzaSyDJc5VTrqjJ-55cHB1vm8II-7XquFkL7TE",
+  authDomain: "webtestmosa.firebaseapp.com",
+  databaseURL: "https://webtestmosa-default-rtdb.asia-southeast1.firebasedatabase.app", // Perbarui ini
+  projectId: "webtestmosa",
+  storageBucket: "webtestmosa.appspot.com",
+  messagingSenderId: "615515289948",
+  appId: "1:615515289948:web:00df3b2bfb28d6a243a999"
 };
 
-// Inisialisasi Firebase
 const app = initializeApp(firebaseConfig);
-
-// Inisialisasi Firestore
-export const db = getFirestore(app);
-
-// Inisialisasi Storage
+export const db = getDatabase(app);
 export const storage = getStorage(app);

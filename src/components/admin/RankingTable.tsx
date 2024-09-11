@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Candidate } from '../../types';
-import { updateDoc, doc } from 'firebase/firestore';
+import { ref, update } from 'firebase/database';
 import { db } from '../../services/firebase';
 
 interface RankingTableProps {
@@ -40,7 +40,9 @@ const RankingTable: React.FC<RankingTableProps> = ({ candidates }) => {
     try {
       const newVoteCount = tempVotes[candidateId];
       if (newVoteCount !== undefined && newVoteCount >= 0) {
-        await updateDoc(doc(db, 'candidates', candidateId), { voteCount: newVoteCount });
+        const updates: { [key: string]: number } = {};
+        updates[`candidates/${candidateId}/voteCount`] = newVoteCount;
+        await update(ref(db), updates);
         console.log(`Vote count updated for candidate ${candidateId}`);
         
         setEditableCandidate(null);

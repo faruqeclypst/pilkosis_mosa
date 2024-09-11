@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { collection, query, where, getDocs, updateDoc, doc, limit, getDoc } from 'firebase/firestore';
+import { ref, get, update, query, orderByChild, equalTo } from 'firebase/database';
 import { db } from '../services/firebase';
 import { Candidate, SchoolInfo, Token } from '../types';
 import { useNavigate } from 'react-router-dom';
@@ -21,7 +21,7 @@ const VotingPage: React.FC = () => {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [showThankYou, setShowThankYou] = useState(false);
-  const [countdown, setCountdown] = useState(3);
+  const [countdown, setCountdown] = useState(5);
   const [schoolInfo, setSchoolInfo] = useState<SchoolInfo | null>(null);
   const [token, setToken] = useState('');
   const [isValidToken, setIsValidToken] = useState(false);
@@ -33,10 +33,10 @@ const VotingPage: React.FC = () => {
 
   useEffect(() => {
     const fetchSchoolInfo = async () => {
-      const schoolInfoRef = doc(db, 'schoolInfo', 'info');
-      const docSnap = await getDoc(schoolInfoRef);
-      if (docSnap.exists()) {
-        setSchoolInfo(docSnap.data() as SchoolInfo);
+      const schoolInfoRef = ref(db, 'schoolInfo/info');
+      const snapshot = await get(schoolInfoRef);
+      if (snapshot.exists()) {
+        setSchoolInfo(snapshot.val() as SchoolInfo);
       }
     };
 
@@ -47,8 +47,15 @@ const VotingPage: React.FC = () => {
     if (isValidToken) {
       const fetchCandidates = async () => {
         try {
-          const querySnapshot = await getDocs(collection(db, 'candidates'));
-          const candidatesData: Candidate[] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Candidate));
+          const candidatesRef = ref(db, 'candidates');
+          const snapshot = await get(candidatesRef);
+          const candidatesData: Candidate[] = [];
+          snapshot.forEach((childSnapshot) => {
+            candidatesData.push({
+              id: childSnapshot.key as string,
+              ...childSnapshot.val()
+            } as Candidate);
+          });
           setCandidates(candidatesData);
         } catch (err) {
           console.error('Error fetching candidates:', err);
@@ -76,20 +83,18 @@ const VotingPage: React.FC = () => {
     setError(null);
     console.log('Attempting to validate token:', token);
     try {
-      const q = query(collection(db, 'tokens'), where('token', '==', token), limit(1));
-      const querySnapshot = await getDocs(q);
+      const tokensRef = ref(db, 'tokens');
+      const tokenQuery = query(tokensRef, orderByChild('token'), equalTo(token));
+      const snapshot = await get(tokenQuery);
       
-      console.log('Query snapshot empty?', querySnapshot.empty);
-      console.log('Number of documents found:', querySnapshot.size);
-
-      if (!querySnapshot.empty) {
-        const tokenDoc = querySnapshot.docs[0];
-        const tokenData = tokenDoc.data() as Token;
+      if (snapshot.exists()) {
+        const tokenData = Object.values(snapshot.val())[0] as Token;
+        const tokenId = Object.keys(snapshot.val())[0];
         console.log('Token document data:', tokenData);
         
         if (!tokenData.used) {
           setIsValidToken(true);
-          setTokenDocId(tokenDoc.id);
+          setTokenDocId(tokenId);
           console.log('Token successfully validated');
         } else {
           setError('Token sudah digunakan');
@@ -115,14 +120,16 @@ const VotingPage: React.FC = () => {
 
     try {
       // Update candidate vote count
-      const candidateRef = doc(db, 'candidates', selectedCandidate.id);
-      await updateDoc(candidateRef, {
-        voteCount: selectedCandidate.voteCount + 1
+      const candidateRef = ref(db, `candidates/${selectedCandidate.id}`);
+      const candidateSnapshot = await get(candidateRef);
+      const currentVotes = candidateSnapshot.val().voteCount || 0;
+      await update(candidateRef, {
+        voteCount: currentVotes + 1
       });
 
       // Mark token as used and store the candidate ID
-      const tokenRef = doc(db, 'tokens', tokenDocId);
-      await updateDoc(tokenRef, { 
+      const tokenRef = ref(db, `tokens/${tokenDocId}`);
+      await update(tokenRef, { 
         used: true,
         candidateId: selectedCandidate.id
       });
@@ -130,7 +137,7 @@ const VotingPage: React.FC = () => {
       setShowConfirmation(false);
       setSelectedCandidate(null);
       setShowThankYou(true);
-      setCountdown(3);
+      setCountdown(5);
       confetti({
         particleCount: 100,
         spread: 70,
@@ -148,19 +155,22 @@ const VotingPage: React.FC = () => {
   };
 
   const CandidateCard = ({ candidate }: { candidate: Candidate }) => (
-    <motion.div
-      whileHover={{ scale: 1.03, boxShadow: "0 10px 20px rgba(0,0,0,0.1)" }}
-      className="bg-white rounded-xl overflow-hidden shadow-lg transition-all duration-300 flex flex-col h-full"
-    >
-      <div className="relative h-80 md:h-96">
-        <img 
-          src={candidate.photoUrl} 
-          alt={candidate.name} 
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-4">
-          <h2 className="text-2xl font-bold text-white mb-1">{candidate.name}</h2>
-          <span className="inline-block bg-blue-500 text-white text-sm px-3 py-1 rounded-full">{candidate.kelas}</span>
+<motion.div
+  whileHover={{ scale: 1.05 }}
+  className="bg-white rounded-2xl overflow-hidden transition-all duration-300 flex flex-col h-full"
+>
+      <div className="relative w-full pb-[133.33%]">
+        <div className="absolute inset-0">
+          <img 
+            src={candidate.photoUrl} 
+            alt={candidate.name} 
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent"></div>
+          <div className="absolute bottom-0 left-0 right-0 p-6">
+            <h2 className="text-3xl font-bold text-white mb-2">{candidate.name}</h2>
+            <span className="inline-block bg-blue-500 text-white text-sm font-bold px-4 py-2 rounded-full shadow-md">{candidate.kelas}</span>
+          </div>
         </div>
       </div>
       <div className="p-6 flex flex-col flex-grow">
@@ -168,7 +178,7 @@ const VotingPage: React.FC = () => {
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => handleVoteClick(candidate)}
-          className="mt-auto w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-3 rounded-full transition-all duration-300 transform hover:shadow-lg text-lg font-semibold"
+          className="mt-auto w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-4 rounded-full transition-all duration-300 transform hover:shadow-lg text-lg font-semibold"
         >
           Vote untuk {candidate.name}
         </motion.button>
@@ -184,25 +194,32 @@ const VotingPage: React.FC = () => {
         exit={{ opacity: 0 }}
         className="flex items-center justify-center min-h-screen bg-gradient-to-r from-blue-500 to-purple-600 p-4"
       >
-        <div className="text-center text-white">
+        <div className="text-center text-white p-12">
           <motion.h1 
             initial={{ y: -50 }}
             animate={{ y: 0 }}
-            className="text-3xl md:text-4xl font-bold mb-4"
+            className="text-4xl md:text-5xl font-bold mb-6"
           >
             Terima Kasih Sudah Melakukan Voting
           </motion.h1>
           <motion.p 
             initial={{ y: 50 }}
             animate={{ y: 0 }}
-            className="text-lg md:text-xl mb-8"
+            className="text-xl font-bold md:text-5xl mb-8"
           >
-            Calon Ketua OSIS {schoolInfo?.name}
+            Calon Ketua OSIS
+          </motion.p>
+          <motion.p 
+            initial={{ y: 50 }}
+            animate={{ y: 0 }}
+            className="text-xl font-bold md:text-5xl mb-8"
+          >
+            {schoolInfo?.name}
           </motion.p>
           <motion.p 
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            className="text-xl md:text-2xl font-bold"
+            className="text-2xl md:text-3xl font-semi-bold"
           >
             Anda akan dialihkan ke halaman utama dalam waktu {countdown} detik
           </motion.p>
@@ -213,20 +230,20 @@ const VotingPage: React.FC = () => {
 
   if (!isValidToken) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-100">
-        <div className="bg-white p-8 rounded-lg shadow-md">
-          <h2 className="text-2xl font-bold mb-4">Masukkan Token Voting</h2>
-          {error && <p className="text-red-500 mb-4">{error}</p>}
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-400 via-purple-500 to-pink-500">
+        <div className="bg-white p-12 rounded-3xl shadow-2xl max-w-md w-full">
+          <h2 className="text-3xl font-bold mb-6 text-center text-gray-800">Masukkan Token Voting</h2>
+          {error && <p className="text-red-500 font-bold mb-6 text-center">{error}</p>}
           <input
             type="text"
             value={token}
             onChange={(e) => setToken(e.target.value)}
-            className="border rounded px-3 py-2 w-full mb-4"
+            className="border-2 border-gray-300 rounded-full px-6 py-3 w-full mb-6 text-lg focus:outline-none focus:border-blue-500 transition-all duration-300"
             placeholder="Masukkan token"
           />
           <button
             onClick={validateToken}
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 w-full"
+            className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-3 rounded-full hover:shadow-lg w-full text-lg font-semibold transition-all duration-300"
           >
             Validasi Token
           </button>
@@ -240,14 +257,14 @@ const VotingPage: React.FC = () => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="min-h-screen py-6 px-4"
+      className="min-h-screen py-12 px-6 bg-gradient-to-r from-blue-50 to-purple-50"
     >
       <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-12">
+        <div className="text-center mb-16">
           <motion.h1 
             initial={{ y: -50 }}
             animate={{ y: 0 }}
-            className="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 mb-4"
+            className="text-5xl md:text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 mb-6"
           >
             Pilih Calon Ketua OSIS
           </motion.h1>
@@ -256,7 +273,7 @@ const VotingPage: React.FC = () => {
             animate={{ scale: 1 }}
             className="inline-block"
           >
-            <span className="block text-lg md:text-xl text-gray-600 border-b-2 border-blue-500 pb-2">
+            <span className="block text-xl md:text-2xl text-gray-700 border-b-4 border-blue-500 pb-2">
               {schoolInfo?.name}
             </span>
           </motion.div>
@@ -266,14 +283,14 @@ const VotingPage: React.FC = () => {
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-8 rounded-md"
+            className="bg-red-100 border-l-4 border-red-500 text-red-700 p-6 mb-12 rounded-lg shadow-md"
           >
-            <p className="font-bold">Error</p>
+            <p className="font-bold text-lg mb-2">Error</p>
             <p>{error}</p>
           </motion.div>
         )}
         
-        <div className="relative">
+        <div className="relative overflow-hidden px-12">
           <div className="absolute top-1/2 left-0 transform -translate-y-1/2 z-10">
             <button className="swiper-button-prev"></button>
           </div>
@@ -283,7 +300,7 @@ const VotingPage: React.FC = () => {
 
           <Swiper
             modules={[Pagination, Navigation, Keyboard]}
-            spaceBetween={30}
+            spaceBetween={40}
             slidesPerView={isMobile ? 1 : 3}
             pagination={{ 
               clickable: true,
@@ -307,7 +324,7 @@ const VotingPage: React.FC = () => {
               </SwiperSlide>
             ))}
           </Swiper>
-          <div className={`custom-pagination ${isMobile ? 'mt-6' : 'mt-4'}`}></div>
+          <div className={`custom-pagination ${isMobile ? 'mt-8' : 'mt-6'}`}></div>
         </div>
       </div>
 
@@ -324,18 +341,18 @@ const VotingPage: React.FC = () => {
               initial={{ scale: 0.5, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.5, opacity: 0 }}
-              className="relative mx-auto p-8 border w-full max-w-md shadow-2xl rounded-2xl bg-white"
+              className="relative mx-auto p-12 border w-full max-w-md shadow-2xl rounded-3xl bg-white"
             >
               <div className="text-center">
-                <h3 className="text-2xl font-bold text-gray-900 mb-4">Konfirmasi Pemilihan</h3>
-                <p className="text-lg text-gray-600 mb-6">
+                <h3 className="text-3xl font-bold text-gray-900 mb-6">Konfirmasi Pemilihan</h3>
+                <p className="text-xl text-gray-700 mb-8">
                   Anda yakin memilih <span className="font-semibold text-blue-600">{selectedCandidate.name}</span> sebagai calon ketua OSIS?
                 </p>
-                <div className="flex justify-center space-x-4">
+                <div className="flex justify-center space-x-6">
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-lg font-medium rounded-full hover:shadow-lg transition-all duration-300"
+                    className="px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-lg font-medium rounded-full hover:shadow-lg transition-all duration-300"
                     onClick={handleConfirmVote}
                   >
                     Ya, Pilih
@@ -343,7 +360,7 @@ const VotingPage: React.FC = () => {
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    className="px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white text-lg font-medium rounded-full hover:shadow-lg transition-all duration-300"
+                    className="px-8 py-4 bg-gradient-to-r from-red-500 to-red-600 text-white text-lg font-medium rounded-full hover:shadow-lg transition-all duration-300"
                     onClick={handleCancelVote}
                   >
                     Batal

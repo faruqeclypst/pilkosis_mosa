@@ -1,11 +1,10 @@
-// src/pages/AdminPage.tsx
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { FaSchool, FaUsers, FaChartBar, FaTrophy, FaSignOutAlt } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
-import { collection, onSnapshot, doc, deleteDoc, writeBatch, getDoc } from 'firebase/firestore';
+import { ref, onValue, remove, update, get } from 'firebase/database';
 import { db } from '../services/firebase';
 import { Candidate, SchoolInfo } from '../types';
+import { useSwipeable } from 'react-swipeable';
 import SchoolInfoSection from '../components/admin/SchoolInfoSection';
 import CandidateList from '../components/admin/CandidateList';
 import StatisticsSection from '../components/admin/StatisticsSection';
@@ -28,6 +27,30 @@ const AdminPage: React.FC = () => {
   const [showResetConfirmation, setShowResetConfirmation] = useState(false);
   const [showResetVoteConfirmation, setShowResetVoteConfirmation] = useState(false);
   const [resetNotification, setResetNotification] = useState<string | null>(null);
+  const [lastActivity, setLastActivity] = useState<number>(Date.now());
+  const [showInactivityAlert, setShowInactivityAlert] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Konfigurasi swipeable untuk sidebar
+  const swipeHandlers = useSwipeable({
+    onSwipedRight: (eventData) => {
+      if (eventData.initial[0] < window.innerWidth * 0.25) {
+        setSidebarOpen(true);
+      }
+    },
+    onSwipedLeft: () => setSidebarOpen(false),
+    trackMouse: true
+  });
+
+  const resetActivityTimer = useCallback(() => {
+    setLastActivity(Date.now());
+    setShowInactivityAlert(false);
+  }, []);
+
+  const logout = useCallback(() => {
+    localStorage.removeItem('isAuthenticated');
+    navigate('/login', { replace: true });
+  }, [navigate]);
 
   useEffect(() => {
     const authStatus = localStorage.getItem('isAuthenticated');
@@ -35,24 +58,44 @@ const AdminPage: React.FC = () => {
       navigate('/login', { replace: true });
     }
 
+    const activityEvents = ['mousedown', 'keydown', 'scroll', 'touchstart'];
+    activityEvents.forEach(event => {
+      window.addEventListener(event, resetActivityTimer);
+    });
+
+    const inactivityCheckInterval = setInterval(() => {
+      const inactiveTime = Date.now() - lastActivity;
+      if (inactiveTime > 4 * 60 * 1000 + 50 * 1000) { // Show alert after 4 minutes 50 seconds
+        setShowInactivityAlert(true);
+      }
+      if (inactiveTime > 5 * 60 * 1000) { // Logout after 5 minutes
+        logout();
+      }
+    }, 1000); // Check every second
+
     const fetchCandidates = () => {
-      const unsubscribe = onSnapshot(collection(db, 'candidates'), (snapshot) => {
+      const candidatesRef = ref(db, 'candidates');
+      const unsubscribe = onValue(candidatesRef, (snapshot) => {
         const candidatesData: Candidate[] = [];
-        snapshot.forEach((doc) => {
-          candidatesData.push({ id: doc.id, ...doc.data() } as Candidate);
+        snapshot.forEach((childSnapshot) => {
+          candidatesData.push({
+            id: childSnapshot.key as string,
+            ...childSnapshot.val()
+          } as Candidate);
         });
         setCandidates(candidatesData);
       }, (err) => {
         setError('Error fetching candidates: ' + err.message);
       });
-      return unsubscribe;
+      return () => unsubscribe();
     };
 
     const fetchSchoolInfo = async () => {
       try {
-        const schoolInfoDoc = await getDoc(doc(db, 'schoolInfo', 'info'));
-        if (schoolInfoDoc.exists()) {
-          setSchoolInfo(schoolInfoDoc.data() as SchoolInfo);
+        const schoolInfoRef = ref(db, 'schoolInfo/info');
+        const snapshot = await get(schoolInfoRef);
+        if (snapshot.exists()) {
+          setSchoolInfo(snapshot.val() as SchoolInfo);
         }
       } catch (err) {
         setError('Error fetching school info: ' + (err as Error).message);
@@ -64,8 +107,12 @@ const AdminPage: React.FC = () => {
 
     return () => {
       unsubscribeCandidates();
+      activityEvents.forEach(event => {
+        window.removeEventListener(event, resetActivityTimer);
+      });
+      clearInterval(inactivityCheckInterval);
     };
-  }, [navigate]);
+  }, [navigate, lastActivity, logout, resetActivityTimer]);
 
   const handleDeleteCandidate = (candidate: Candidate) => {
     setCandidateToDelete(candidate);
@@ -75,7 +122,7 @@ const AdminPage: React.FC = () => {
   const confirmDeleteCandidate = async () => {
     if (candidateToDelete) {
       try {
-        await deleteDoc(doc(db, 'candidates', candidateToDelete.id));
+        await remove(ref(db, `candidates/${candidateToDelete.id}`));
         console.log(`Kandidat ${candidateToDelete.name} berhasil dihapus`);
         setShowDeleteConfirmation(false);
         setCandidateToDelete(null);
@@ -87,15 +134,7 @@ const AdminPage: React.FC = () => {
 
   const handleResetData = async () => {
     try {
-      const batch = writeBatch(db);
-      
-      candidates.forEach((candidate) => {
-        const candidateRef = doc(db, 'candidates', candidate.id);
-        batch.delete(candidateRef);
-      });
-  
-      await batch.commit();
-  
+      await remove(ref(db, 'candidates'));
       setCandidates([]);
       setShowResetConfirmation(false);
       setResetNotification('Semua data berhasil direset!');
@@ -108,14 +147,11 @@ const AdminPage: React.FC = () => {
 
   const handleResetVotes = async () => {
     try {
-      const batch = writeBatch(db);
-      
+      const updates: { [key: string]: number } = {};
       candidates.forEach((candidate) => {
-        const candidateRef = doc(db, 'candidates', candidate.id);
-        batch.update(candidateRef, { voteCount: 0 });
+        updates[`candidates/${candidate.id}/voteCount`] = 0;
       });
-
-      await batch.commit();
+      await update(ref(db), updates);
       setShowResetVoteConfirmation(false);
       setResetNotification('Vote berhasil direset!');
       setTimeout(() => setResetNotification(null), 3000);
@@ -130,14 +166,13 @@ const AdminPage: React.FC = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('isAuthenticated');
-    navigate('/login', { replace: true });
+    logout();
   };
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-gray-100" {...swipeHandlers}>
       {/* Sidebar */}
-      <div className="w-64 bg-blue-800 text-white">
+      <div className={`fixed inset-y-0 left-0 z-30 w-64 bg-blue-800 text-white transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0`}>
         <div className="p-6">
           <h1 className="text-2xl font-bold">Admin Dashboard</h1>
         </div>
@@ -152,13 +187,17 @@ const AdminPage: React.FC = () => {
               key={index} 
               href={item.href} 
               className="flex items-center py-3 px-6 hover:bg-blue-700 transition-colors duration-200"
+              onClick={() => setSidebarOpen(false)}
             >
               <span className="mr-3">{item.icon}</span>
               {item.text}
             </a>
           ))}
           <button
-            onClick={handleLogout}
+            onClick={() => {
+              handleLogout();
+              setSidebarOpen(false);
+            }}
             className="w-full flex items-center text-left py-3 px-6 hover:bg-blue-700 transition-colors duration-200"
           >
             <FaSignOutAlt className="mr-3" />
@@ -228,6 +267,16 @@ const AdminPage: React.FC = () => {
         onConfirm={handleResetVotes} 
         onCancel={() => setShowResetVoteConfirmation(false)} 
       />
+
+      {/* Inactivity Alert */}
+      {showInactivityAlert && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-xl">
+            <h2 className="text-xl font-bold mb-4">Peringatan Inaktivitas</h2>
+            <p>Anda akan logout dalam 5 detik karena tidak aktif. Klik di mana saja untuk tetap masuk.</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

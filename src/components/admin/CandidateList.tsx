@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import { Candidate } from '../../types';
-import { updateDoc, doc, addDoc, collection } from 'firebase/firestore';
+import { ref, set, push, update } from 'firebase/database';
 import { db } from '../../services/firebase';
 import { uploadImageToFirebase } from '../../utils/firebaseUtils';
 import { compressAndConvertToWebP } from '../../utils/imageUtils';
@@ -33,7 +33,7 @@ const CandidateList: React.FC<CandidateListProps> = ({
 
   const handleUpdateCandidate = async (id: string, data: Partial<Candidate>) => {
     try {
-      await updateDoc(doc(db, 'candidates', id), data);
+      await update(ref(db, `candidates/${id}`), data);
       setEditingId(null);
       setEditedCandidate(null);
     } catch (err) {
@@ -84,7 +84,8 @@ const CandidateList: React.FC<CandidateListProps> = ({
 
   const handleAddNewCandidate = async () => {
     try {
-      await addDoc(collection(db, 'candidates'), {
+      const newCandidateRef = push(ref(db, 'candidates'));
+      await set(newCandidateRef, {
         ...newCandidate,
         voteCount: 0
       });

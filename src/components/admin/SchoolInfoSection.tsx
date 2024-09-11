@@ -1,8 +1,6 @@
-// src/components/admin/SchoolInfoSection.tsx
-
 import React, { useState, useEffect } from 'react';
-import { doc, setDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, set } from 'firebase/database';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../services/firebase';
 import { SchoolInfo } from '../../types';
 
@@ -18,16 +16,13 @@ const SchoolInfoSection: React.FC<SchoolInfoSectionProps> = ({ schoolInfo, setSc
   const [previewUrl, setPreviewUrl] = useState<string | null>(schoolInfo.logo);
 
   useEffect(() => {
-    setNewSchoolName(schoolInfo.name);
     setPreviewUrl(schoolInfo.logo);
   }, [schoolInfo]);
 
-  // Handle file upload and generate preview
   const handleSchoolLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       setNewSchoolLogo(file);
-      // Generate preview URL
       const reader = new FileReader();
       reader.onloadend = () => {
         setPreviewUrl(reader.result as string);
@@ -36,16 +31,18 @@ const SchoolInfoSection: React.FC<SchoolInfoSectionProps> = ({ schoolInfo, setSc
     }
   };
 
-  // Handle updating school info
   const handleUpdateSchoolInfo = async () => {
     try {
-      const schoolInfoRef = doc(db, 'schoolInfo', 'info');
+      console.log('Updating school info...');
+      const schoolInfoRef = ref(db, 'schoolInfo/info');
       let logoUrl = schoolInfo.logo;
 
       if (newSchoolLogo) {
-        const storageRef = ref(storage, `school/logo.${newSchoolLogo.name.split('.').pop()}`);
-        await uploadBytes(storageRef, newSchoolLogo);
-        logoUrl = await getDownloadURL(storageRef);
+        console.log('Uploading new logo...');
+        const fileRef = storageRef(storage, `school/logo.${newSchoolLogo.name.split('.').pop()}`);
+        await uploadBytes(fileRef, newSchoolLogo);
+        logoUrl = await getDownloadURL(fileRef);
+        console.log('New logo uploaded successfully:', logoUrl);
       }
 
       const updatedSchoolInfo: SchoolInfo = {
@@ -53,19 +50,24 @@ const SchoolInfoSection: React.FC<SchoolInfoSectionProps> = ({ schoolInfo, setSc
         logo: logoUrl
       };
 
-      await setDoc(schoolInfoRef, updatedSchoolInfo, { merge: true });
+      console.log('Updating database with:', updatedSchoolInfo);
+      await set(schoolInfoRef, updatedSchoolInfo);
+      console.log('Database updated successfully');
+
       setSchoolInfo(updatedSchoolInfo);
+      console.log('Local state updated with:', updatedSchoolInfo);
+
       setNewSchoolLogo(null);
-      console.log('School info updated successfully');
+      console.log('School info update completed');
     } catch (err) {
-      setError('Error updating school info: ' + (err as Error).message);
-      console.error('Error updating school info:', err);
+      const errorMessage = 'Error updating school info: ' + (err as Error).message;
+      setError(errorMessage);
+      console.error(errorMessage, err);
     }
   };
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 admin-card">
-      {/* School Info Card */}
       <section className="admin-card">
         <h2 className="text-2xl font-semibold mb-4">Informasi Sekolah</h2>
         <div className="mb-4">
@@ -100,7 +102,6 @@ const SchoolInfoSection: React.FC<SchoolInfoSectionProps> = ({ schoolInfo, setSc
         <p className="mt-4">Nama Sekolah Saat Ini: <span className="font-semibold">{schoolInfo.name}</span></p>
       </section>
 
-      {/* Logo Preview Card */}
       <section className="admin-card">
         <h2 className="text-2xl font-semibold mb-4">Logo Sekolah</h2>
         <div className="flex items-center justify-center h-64">
@@ -121,4 +122,4 @@ const SchoolInfoSection: React.FC<SchoolInfoSectionProps> = ({ schoolInfo, setSc
   );
 };
 
-export default SchoolInfoSection;
+export default SchoolInfoSection;                 

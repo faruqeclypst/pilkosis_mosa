@@ -1,5 +1,9 @@
 {
   "projects": {
-    "default": "pilkosis-mosa"
-  }
+    "default": "pilkosis-mosa",
+    "TEST WEB": "webtestmosa"
+  },
+  "targets": {},
+  "etags": {},
+  "dataconnectEmulatorConfig": {}
 }

@@ -29,7 +29,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({ onExportPDF, onResetVotes
           onClick={onDeleteAll}
           className="admin-btn admin-btn-danger"
         >
-          Delete All
+          Hapus Semua
         </button>
       </div>
     );
