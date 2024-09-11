@@ -1,3 +1,9 @@
+# Versi kedua
+Ini udah makin ajib pindah dari firestore sekarang pakai firebase realtime database,
+Supaya lebih enak tokennya gak kena usage limit
+
+
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
