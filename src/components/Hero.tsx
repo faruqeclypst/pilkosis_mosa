@@ -22,7 +22,7 @@ const Hero: React.FC<HeroProps> = React.memo(({ schoolName, schoolLogo }) => {
         <h1 className="text-5xl md:text-6xl font-bold mb-4">
           Pemilihan Ketua OSIS
         </h1>
-        <h2 className="text-3xl md:text-4xl font-bold mb-8">
+        <h2 className="text-3xl md:text-3xl font-bold mb-8">
           {schoolName}
         </h2>
         <Link
@@ -35,7 +35,7 @@ const Hero: React.FC<HeroProps> = React.memo(({ schoolName, schoolLogo }) => {
         </Link>
       </div>
       <footer className="py-4">
-        <p className="text-center font-bold text-2xl text-white">
+        <p className="text-center font-bold text-1xl text-white">
           &copy; {new Date().getFullYear()} Alfaruq Asri, S.Pd
         </p>
       </footer>

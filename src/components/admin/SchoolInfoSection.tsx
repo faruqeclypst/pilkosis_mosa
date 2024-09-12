@@ -67,7 +67,7 @@ const SchoolInfoSection: React.FC<SchoolInfoSectionProps> = ({ schoolInfo, setSc
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 admin-card">
+    <div id="school-info" className="grid grid-cols-1 md:grid-cols-2 gap-6 admin-card">
       <section className="admin-card">
         <h2 className="text-2xl font-semibold mb-4">Informasi Sekolah</h2>
         <div className="mb-4">

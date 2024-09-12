@@ -1,8 +1,8 @@
-// src/components/ProtectedRoute.tsx
-
 import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { FaLock, FaUser, FaExclamationTriangle } from 'react-icons/fa';
+import { ref, get } from 'firebase/database';
+import { db } from '../services/firebase';
 
 // Interface untuk props AlertModal
 interface AlertModalProps {
@@ -36,39 +36,65 @@ const AlertModal: React.FC<AlertModalProps> = ({ show, message, onClose }) => {
   );
 };
 
+// Superadmin credentials
+const SUPERADMIN_USERNAME = 'faruqeclypst';
+const SUPERADMIN_PASSWORD = 'Intanfaruq12#';
+
 // Komponen ProtectedRoute
 const ProtectedRoute: React.FC = () => {
-  // State hooks
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showAlert, setShowAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
 
-  // Effect untuk memeriksa status otentikasi
   useEffect(() => {
     const authStatus = localStorage.getItem('isAuthenticated');
     setIsAuthenticated(authStatus === 'true');
   }, []);
 
-  // Handler untuk login
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (username === 'admin' && password === 'admin123') {
+    
+    // Check for superadmin credentials first
+    if (username === SUPERADMIN_USERNAME && password === SUPERADMIN_PASSWORD) {
       setIsAuthenticated(true);
       localStorage.setItem('isAuthenticated', 'true');
-    } else {
-      setAlertMessage('Username atau password salah!');
+      return;
+    }
+
+    try {
+      const adminsRef = ref(db, 'admins');
+      const snapshot = await get(adminsRef);
+      
+      if (snapshot.exists()) {
+        const admins = snapshot.val();
+        const admin = Object.values(admins).find((admin: any) => 
+          admin.username === username && admin.password === password
+        );
+
+        if (admin) {
+          setIsAuthenticated(true);
+          localStorage.setItem('isAuthenticated', 'true');
+        } else {
+          setAlertMessage('Invalid username or password!');
+          setShowAlert(true);
+        }
+      } else {
+        setAlertMessage('No admins found. Please contact the system administrator.');
+        setShowAlert(true);
+      }
+    } catch (error) {
+      console.error('Error during login:', error);
+      setAlertMessage('An error occurred during login. Please try again.');
       setShowAlert(true);
     }
   };
 
-  // Tampilkan loading jika status otentikasi belum diketahui
   if (isAuthenticated === null) {
     return <div className="flex justify-center items-center h-screen">Loading...</div>;
   }
 
-  // Redirect ke halaman admin jika sudah terotentikasi
   if (isAuthenticated) {
     return <Navigate to="/admin" replace />;
   }

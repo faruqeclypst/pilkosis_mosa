@@ -21,3 +21,9 @@ export interface Candidate {
     candidateId: string | null;
     originalIndex: number;
   }
+
+  export interface Admin {
+    id: string;
+    username: string;
+    password: string;
+  }

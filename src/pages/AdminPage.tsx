@@ -1,9 +1,11 @@
+// src/pages/AdminPage.tsx
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { FaSchool, FaUsers, FaChartBar, FaTrophy, FaSignOutAlt } from 'react-icons/fa';
+import { FaSchool, FaUsers, FaChartBar, FaTrophy, FaSignOutAlt, FaUserCog } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
-import { ref, onValue, remove, update, get } from 'firebase/database';
+import { ref, onValue, remove, update, get, push } from 'firebase/database';
 import { db } from '../services/firebase';
-import { Candidate, SchoolInfo } from '../types';
+import { Candidate, SchoolInfo, Admin } from '../types';
 import { useSwipeable } from 'react-swipeable';
 import SchoolInfoSection from '../components/admin/SchoolInfoSection';
 import CandidateList from '../components/admin/CandidateList';
@@ -14,6 +16,7 @@ import DeleteConfirmationModal from '../components/admin/DeleteConfirmationModal
 import ResetConfirmationModal from '../components/admin/ResetConfirmationModal';
 import ResetVoteConfirmationModal from '../components/admin/ResetVoteConfirmationModal';
 import TokenGenerator from '../components/admin/TokenGenerator';
+import AdminManagement from '../components/admin/AdminManagement';
 import { exportToPDF } from '../utils/pdfExport';
 import '../assets/css/AdminTable.css';
 
@@ -21,6 +24,7 @@ const AdminPage: React.FC = () => {
   const navigate = useNavigate();
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [schoolInfo, setSchoolInfo] = useState<SchoolInfo>({ name: '', logo: '' });
+  const [admins, setAdmins] = useState<Admin[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [candidateToDelete, setCandidateToDelete] = useState<Candidate | null>(null);
@@ -102,11 +106,30 @@ const AdminPage: React.FC = () => {
       }
     };
 
+    const fetchAdmins = () => {
+      const adminsRef = ref(db, 'admins');
+      const unsubscribe = onValue(adminsRef, (snapshot) => {
+        const adminsData: Admin[] = [];
+        snapshot.forEach((childSnapshot) => {
+          adminsData.push({
+            id: childSnapshot.key as string,
+            ...childSnapshot.val()
+          } as Admin);
+        });
+        setAdmins(adminsData);
+      }, (err) => {
+        setError('Error fetching admins: ' + err.message);
+      });
+      return () => unsubscribe();
+    };
+
     const unsubscribeCandidates = fetchCandidates();
+    const unsubscribeAdmins = fetchAdmins();
     fetchSchoolInfo();
 
     return () => {
       unsubscribeCandidates();
+      unsubscribeAdmins();
       activityEvents.forEach(event => {
         window.removeEventListener(event, resetActivityTimer);
       });
@@ -165,6 +188,33 @@ const AdminPage: React.FC = () => {
     exportToPDF(candidates, schoolInfo);
   };
 
+  const handleAddAdmin = async (newAdmin: Omit<Admin, 'id'>) => {
+    try {
+      const adminsRef = ref(db, 'admins');
+      await push(adminsRef, newAdmin);
+    } catch (err) {
+      setError('Error adding admin: ' + (err as Error).message);
+    }
+  };
+
+  const handleUpdateAdmin = async (adminId: string, updatedAdmin: Partial<Admin>) => {
+    try {
+      const adminRef = ref(db, `admins/${adminId}`);
+      await update(adminRef, updatedAdmin);
+    } catch (err) {
+      setError('Error updating admin: ' + (err as Error).message);
+    }
+  };
+
+  const handleDeleteAdmin = async (adminId: string) => {
+    try {
+      const adminRef = ref(db, `admins/${adminId}`);
+      await remove(adminRef);
+    } catch (err) {
+      setError('Error deleting admin: ' + (err as Error).message);
+    }
+  };
+
   const handleLogout = () => {
     logout();
   };
@@ -182,10 +232,12 @@ const AdminPage: React.FC = () => {
             { text: "Daftar Calon", href: "#candidates", icon: <FaUsers /> },
             { text: "Statistik Pemilihan", href: "#statistics", icon: <FaChartBar /> },
             { text: "Peringkat Kandidat", href: "#ranking", icon: <FaTrophy /> },
+            { text: "Manajemen Token", href: "#token-management", icon: <FaUserCog /> },
+            { text: "Manajemen Admin", href: "#admin-management", icon: <FaUserCog /> },
           ].map((item, index) => (
-            <a 
-              key={index} 
-              href={item.href} 
+            <a
+              key={index}
+              href={item.href}
               className="flex items-center py-3 px-6 hover:bg-blue-700 transition-colors duration-200"
               onClick={() => setSidebarOpen(false)}
             >
@@ -220,19 +272,25 @@ const AdminPage: React.FC = () => {
           {/* Dashboard Sections */}
           <div className="space-y-8">
             <SchoolInfoSection schoolInfo={schoolInfo} setSchoolInfo={setSchoolInfo} setError={setError} />
-            <CandidateList 
-              candidates={candidates} 
-              onDelete={handleDeleteCandidate} 
+            <CandidateList
+              candidates={candidates}
+              onDelete={handleDeleteCandidate}
               setError={setError}
             />
             <StatisticsSection candidates={candidates} />
             <RankingTable candidates={candidates} />
-            <ActionButtons 
-              onExportPDF={handleExportToPDF} 
-              onResetVotes={() => setShowResetVoteConfirmation(true)} 
-              onDeleteAll={() => setShowResetConfirmation(true)} 
+            <ActionButtons
+              onExportPDF={handleExportToPDF}
+              onResetVotes={() => setShowResetVoteConfirmation(true)}
+              onDeleteAll={() => setShowResetConfirmation(true)}
             />
             <TokenGenerator setError={setError} />
+            <AdminManagement 
+              admins={admins}
+              onAddAdmin={handleAddAdmin}
+              onUpdateAdmin={handleUpdateAdmin}
+              onDeleteAdmin={handleDeleteAdmin}
+            />
           </div>
 
           {/* Reset Notification */}
@@ -246,26 +304,26 @@ const AdminPage: React.FC = () => {
       </div>
 
       {/* Modals */}
-      <DeleteConfirmationModal 
-        show={showDeleteConfirmation} 
-        candidate={candidateToDelete} 
-        onConfirm={confirmDeleteCandidate} 
+      <DeleteConfirmationModal
+        show={showDeleteConfirmation}
+        candidate={candidateToDelete}
+        onConfirm={confirmDeleteCandidate}
         onCancel={() => {
           setShowDeleteConfirmation(false);
           setCandidateToDelete(null);
-        }} 
+        }}
       />
 
-      <ResetConfirmationModal 
-        show={showResetConfirmation} 
-        onConfirm={handleResetData} 
-        onCancel={() => setShowResetConfirmation(false)} 
+      <ResetConfirmationModal
+        show={showResetConfirmation}
+        onConfirm={handleResetData}
+        onCancel={() => setShowResetConfirmation(false)}
       />
 
-      <ResetVoteConfirmationModal 
-        show={showResetVoteConfirmation} 
-        onConfirm={handleResetVotes} 
-        onCancel={() => setShowResetVoteConfirmation(false)} 
+      <ResetVoteConfirmationModal
+        show={showResetVoteConfirmation}
+        onConfirm={handleResetVotes}
+        onCancel={() => setShowResetVoteConfirmation(false)}
       />
 
       {/* Inactivity Alert */}
@@ -273,7 +331,7 @@ const AdminPage: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-xl">
             <h2 className="text-xl font-bold mb-4">Peringatan Inaktivitas</h2>
-            <p>Anda akan logout dalam 5 detik karena tidak aktif. Klik di mana saja untuk tetap masuk.</p>
+            <p>Anda akan logout dalam 10 detik karena tidak aktif. Klik di mana saja untuk tetap masuk.</p>
           </div>
         </div>
       )}

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { ref, get, update, query, orderByChild, equalTo } from 'firebase/database';
 import { db } from '../services/firebase';
 import { Candidate, SchoolInfo, Token } from '../types';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { Swiper, SwiperSlide } from 'swiper/react';

@@ -237,7 +237,7 @@ const TokenGenerator: React.FC<TokenGeneratorProps> = ({ setError }) => {
   };
 
   return (
-    <div className="mt-8 bg-white p-6 rounded-lg shadow-md">
+    <div id="token-management" className="mt-8 bg-white p-6 rounded-lg shadow-md">
       <h2 className="text-2xl text-blue-600 font-bold mb-4">Generate Token Voting</h2>
       <div className="flex flex-wrap items-center gap-4 mb-6">
         <input
