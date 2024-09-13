@@ -159,31 +159,33 @@ const VotingPage: React.FC = () => {
   whileHover={{ scale: 1.05 }}
   className="bg-white rounded-2xl overflow-hidden transition-all duration-300 flex flex-col h-full"
 >
-      <div className="relative w-full pb-[133.33%]">
-        <div className="absolute inset-0">
-          <img 
-            src={candidate.photoUrl} 
-            alt={candidate.name} 
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent"></div>
-          <div className="absolute bottom-0 left-0 right-0 p-6">
-            <h2 className="text-3xl font-bold text-white mb-2">{candidate.name}</h2>
-            <span className="inline-block bg-blue-500 text-white text-sm font-bold px-4 py-2 rounded-full shadow-md">{candidate.kelas}</span>
-          </div>
-        </div>
+  <div className="relative w-full pb-[133.33%]">
+    <div className="absolute inset-0">
+      <img 
+        src={candidate.photoUrl} 
+        alt={candidate.name} 
+        className="w-full h-full object-cover"
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent"></div>
+      <div className="absolute top-0 right-0 p-6">
+        <span className="bg-blue-500 text-white text-sm font-bold px-4 py-2 rounded-full shadow-md">{candidate.kelas}</span>
       </div>
-      <div className="p-6 flex flex-col flex-grow">
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => handleVoteClick(candidate)}
-          className="mt-auto w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-4 rounded-full transition-all duration-300 transform hover:shadow-lg text-lg font-semibold"
-        >
-          Vote untuk {candidate.name}
-        </motion.button>
+      <div className="absolute bottom-0 left-0 right-0 p-7">
+        <h2 className="text-2xl font-semi-bold text-white">{candidate.name}</h2>
       </div>
-    </motion.div>
+    </div>
+  </div>
+  <div className="p-6 flex flex-col flex-grow">
+    <motion.button
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
+      onClick={() => handleVoteClick(candidate)}
+      className="mt-auto w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-4 rounded-full transition-all duration-300 transform hover:shadow-lg text-lg font-semibold"
+    >
+      Vote
+    </motion.button>
+  </div>
+</motion.div>
   );
 
   if (showThankYou) {
@@ -230,25 +232,26 @@ const VotingPage: React.FC = () => {
 
   if (!isValidToken) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-400 via-purple-500 to-pink-500">
-        <div className="bg-white p-12 rounded-3xl shadow-2xl max-w-md w-full">
-          <h2 className="text-3xl font-bold mb-6 text-center text-gray-800">Masukkan Token Voting</h2>
-          {error && <p className="text-red-500 font-bold mb-6 text-center">{error}</p>}
-          <input
-            type="text"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            className="border-2 border-gray-300 rounded-full px-6 py-3 w-full mb-6 text-lg focus:outline-none focus:border-blue-500 transition-all duration-300"
-            placeholder="Masukkan token"
-          />
-          <button
-            onClick={validateToken}
-            className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-3 rounded-full hover:shadow-lg w-full text-lg font-semibold transition-all duration-300"
-          >
-            Validasi Token
-          </button>
-        </div>
-      </div>
+<div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-400 via-purple-500 to-pink-500">
+  <div className="bg-white p-6 sm:p-12 rounded-3xl shadow-2xl max-w-md w-full">
+    <h2 className="text-2xl sm:text-3xl font-bold mb-6 text-center text-gray-800">Masukkan Token</h2>
+    {error && <p className="text-red-500 font-bold mb-6 text-center">{error}</p>}
+    <input
+      type="text"
+      value={token}
+      onChange={(e) => setToken(e.target.value)}
+      className="border-2 border-gray-300 rounded-full px-4 py-2 sm:px-6 sm:py-3 w-full mb-6 text-lg focus:outline-none focus:border-blue-500 transition-all duration-300"
+      placeholder="Token Kamu!"
+    />
+    <button
+      onClick={validateToken}
+      className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-2 sm:px-6 sm:py-3 rounded-full hover:shadow-lg w-full text-lg font-semibold transition-all duration-300"
+    >
+      Validasi Token
+    </button>
+  </div>
+</div>
+
     );
   }
 
@@ -266,14 +269,14 @@ const VotingPage: React.FC = () => {
             animate={{ y: 0 }}
             className="text-5xl md:text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 mb-6"
           >
-            Pilih Calon Ketua OSIS
+            PEMOS {new Date().getFullYear()} 
           </motion.h1>
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             className="inline-block"
           >
-            <span className="block text-xl md:text-2xl text-gray-700 border-b-4 border-blue-500 pb-2">
+            <span className="block text-xl md:text-2xl font-bold text-gray-700 border-b-4 border-blue-500 pb-2">
               {schoolInfo?.name}
             </span>
           </motion.div>
@@ -344,7 +347,7 @@ const VotingPage: React.FC = () => {
               className="relative mx-auto p-12 border w-full max-w-md shadow-2xl rounded-3xl bg-white"
             >
               <div className="text-center">
-                <h3 className="text-3xl font-bold text-gray-900 mb-6">Konfirmasi Pemilihan</h3>
+                <h3 className="text-3xl font-bold text-gray-900 mb-6">Konfirmasi</h3>
                 <p className="text-xl text-gray-700 mb-8">
                   Anda yakin memilih <span className="font-semibold text-blue-600">{selectedCandidate.name}</span> sebagai calon ketua OSIS?
                 </p>
@@ -355,7 +358,7 @@ const VotingPage: React.FC = () => {
                     className="px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-lg font-medium rounded-full hover:shadow-lg transition-all duration-300"
                     onClick={handleConfirmVote}
                   >
-                    Ya, Pilih
+                    Ya
                   </motion.button>
                   <motion.button
                     whileHover={{ scale: 1.05 }}

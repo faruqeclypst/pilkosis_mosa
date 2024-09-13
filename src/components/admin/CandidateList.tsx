@@ -104,15 +104,16 @@ const CandidateList: React.FC<CandidateListProps> = ({
 
   return (
     <section id="candidates" className="admin-card">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-semibold">Daftar Calon</h2>
-        <button
-          onClick={() => setIsAddingNew(true)}
-          className="admin-btn admin-btn-primary"
-        >
-          Tambah Calon
-        </button>
-      </div>
+<div className="flex flex-col sm:flex-row justify-between mb-6">
+  <h2 className="text-2xl font-semibold mb-4 sm:mb-0">Daftar Calon</h2>
+  <button
+    onClick={() => setIsAddingNew(true)}
+    className="admin-btn admin-btn-primary"
+  >
+    Tambah
+  </button>
+</div>
+
 
       <div className="overflow-x-auto">
         <table className="admin-table">

@@ -154,7 +154,7 @@ const ProtectedRoute: React.FC = () => {
           </div>
         </form>
         
-        <p className="mt-8 text-center text-sm font-bold text-gray-600">
+        <p className="mt-8 text-center text-sm font-italic text-gray-600">
           &copy;{new Date().getFullYear()} Alfaruq Asri, S.Pd. 
           <span className="block">SMAN Modal Bangsa. All rights reserved.</span>
         </p>

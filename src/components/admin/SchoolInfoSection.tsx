@@ -97,7 +97,7 @@ const SchoolInfoSection: React.FC<SchoolInfoSectionProps> = ({ schoolInfo, setSc
           onClick={handleUpdateSchoolInfo}
           className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors"
         >
-          Update Informasi Sekolah
+          Update Informasi
         </button>
         <p className="mt-4">Nama Sekolah Saat Ini: <span className="font-semibold">{schoolInfo.name}</span></p>
       </section>

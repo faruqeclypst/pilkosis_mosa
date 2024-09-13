@@ -15,14 +15,14 @@ const Hero: React.FC<HeroProps> = React.memo(({ schoolName, schoolLogo }) => {
         {schoolLogo && (
           <img 
             src={schoolLogo} 
-            alt={`Logo ${schoolName}`} 
+            // alt={`Logo ${schoolName}`} 
             className="mx-auto mb-8 w-32 h-32 object-contain"
           />
         )}
         <h1 className="text-5xl md:text-6xl font-bold mb-4">
-          Pemilihan Ketua OSIS
+          PEMOS {new Date().getFullYear()} 
         </h1>
-        <h2 className="text-3xl md:text-3xl font-bold mb-8">
+        <h2 className="text-2xl md:text-2xl font-bold mb-8">
           {schoolName}
         </h2>
         <Link
@@ -35,7 +35,7 @@ const Hero: React.FC<HeroProps> = React.memo(({ schoolName, schoolLogo }) => {
         </Link>
       </div>
       <footer className="py-4">
-        <p className="text-center font-bold text-1xl text-white">
+        <p className="text-center font-italic text-1xl text-white">
           &copy; {new Date().getFullYear()} Alfaruq Asri, S.Pd
         </p>
       </footer>
