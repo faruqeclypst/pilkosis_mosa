@@ -26,6 +26,7 @@ const VotingPage: React.FC = () => {
   const [token, setToken] = useState('');
   const [isValidToken, setIsValidToken] = useState(false);
   const [tokenDocId, setTokenDocId] = useState<string | null>(null);
+  const [tokenType, setTokenType] = useState<'student' | 'teacher' | null>(null);
   const navigate = useNavigate();
 
   const isMobile = window.innerWidth < 768;
@@ -95,6 +96,7 @@ const VotingPage: React.FC = () => {
         if (!tokenData.used) {
           setIsValidToken(true);
           setTokenDocId(tokenId);
+          setTokenType(tokenData.type);
           console.log('Token successfully validated');
         } else {
           setError('Token sudah digunakan');
@@ -116,15 +118,16 @@ const VotingPage: React.FC = () => {
   };
 
   const handleConfirmVote = async () => {
-    if (!selectedCandidate || !tokenDocId) return;
+    if (!selectedCandidate || !tokenDocId || !tokenType) return;
 
     try {
       // Update candidate vote count
       const candidateRef = ref(db, `candidates/${selectedCandidate.id}`);
       const candidateSnapshot = await get(candidateRef);
       const currentVotes = candidateSnapshot.val().voteCount || 0;
+      const voteIncrement = tokenType === 'teacher' ? 2 : 1;
       await update(candidateRef, {
-        voteCount: currentVotes + 1
+        voteCount: currentVotes + voteIncrement
       });
 
       // Mark token as used and store the candidate ID
@@ -155,37 +158,37 @@ const VotingPage: React.FC = () => {
   };
 
   const CandidateCard = ({ candidate }: { candidate: Candidate }) => (
-<motion.div
-  whileHover={{ scale: 1.05 }}
-  className="bg-white rounded-2xl overflow-hidden transition-all duration-300 flex flex-col h-full"
->
-  <div className="relative w-full pb-[133.33%]">
-    <div className="absolute inset-0">
-      <img 
-        src={candidate.photoUrl} 
-        alt={candidate.name} 
-        className="w-full h-full object-cover"
-      />
-      <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent"></div>
-      <div className="absolute top-0 right-0 p-6">
-        <span className="bg-blue-500 text-white text-sm font-bold px-4 py-2 rounded-full shadow-md">{candidate.kelas}</span>
-      </div>
-      <div className="absolute bottom-0 left-0 right-0 p-7">
-        <h2 className="text-2xl font-semi-bold text-white">{candidate.name}</h2>
-      </div>
-    </div>
-  </div>
-  <div className="p-6 flex flex-col flex-grow">
-    <motion.button
+    <motion.div
       whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.95 }}
-      onClick={() => handleVoteClick(candidate)}
-      className="mt-auto w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-4 rounded-full transition-all duration-300 transform hover:shadow-lg text-lg font-semibold"
+      className="bg-white rounded-2xl overflow-hidden transition-all duration-300 flex flex-col h-full"
     >
-      Vote
-    </motion.button>
-  </div>
-</motion.div>
+      <div className="relative w-full pb-[133.33%]">
+        <div className="absolute inset-0">
+          <img 
+            src={candidate.photoUrl} 
+            alt={candidate.name} 
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent"></div>
+          <div className="absolute top-0 right-0 p-6">
+            <span className="bg-blue-500 text-white text-sm font-bold px-4 py-2 rounded-full shadow-md">{candidate.kelas}</span>
+          </div>
+          <div className="absolute bottom-0 left-0 right-0 p-7">
+            <h2 className="text-2xl font-semi-bold text-white">{candidate.name}</h2>
+          </div>
+        </div>
+      </div>
+      <div className="p-6 flex flex-col flex-grow">
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => handleVoteClick(candidate)}
+          className="mt-auto w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-4 rounded-full transition-all duration-300 transform hover:shadow-lg text-lg font-semibold"
+        >
+          Vote
+        </motion.button>
+      </div>
+    </motion.div>
   );
 
   if (showThankYou) {
@@ -232,27 +235,25 @@ const VotingPage: React.FC = () => {
 
   if (!isValidToken) {
     return (
-<div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-300 via-blue-500 to-blue-900">
-{/* <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-400 via-purple-500 to-pink-500"> */}
-  <div className="bg-white p-6 sm:p-12 rounded-3xl shadow-2xl max-w-md w-full">
-    <h2 className="text-2xl sm:text-3xl font-bold mb-6 text-center text-gray-800">Masukkan Token</h2>
-    {error && <p className="text-red-500 font-bold mb-6 text-center">{error}</p>}
-    <input
-      type="text"
-      value={token}
-      onChange={(e) => setToken(e.target.value)}
-      className="border-2 border-gray-300 rounded-full px-4 py-2 sm:px-6 sm:py-3 w-full mb-6 text-lg focus:outline-none focus:border-blue-500 transition-all duration-300"
-      placeholder="Token Kamu!"
-    />
-    <button
-      onClick={validateToken}
-      className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-2 sm:px-6 sm:py-3 rounded-full hover:shadow-lg w-full text-lg font-semibold transition-all duration-300"
-    >
-      Validasi Token
-    </button>
-  </div>
-</div>
-
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-300 via-blue-500 to-blue-900">
+        <div className="bg-white p-6 sm:p-12 rounded-3xl shadow-2xl max-w-md w-full">
+          <h2 className="text-2xl sm:text-3xl font-bold mb-6 text-center text-gray-800">Masukkan Token</h2>
+          {error && <p className="text-red-500 font-bold mb-6 text-center">{error}</p>}
+          <input
+            type="text"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            className="border-2 border-gray-300 rounded-full px-4 py-2 sm:px-6 sm:py-3 w-full mb-6 text-lg focus:outline-none focus:border-blue-500 transition-all duration-300"
+            placeholder="Token Kamu!"
+          />
+          <button
+            onClick={validateToken}
+            className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-2 sm:px-6 sm:py-3 rounded-full hover:shadow-lg w-full text-lg font-semibold transition-all duration-300"
+          >
+            Validasi Token
+          </button>
+        </div>
+      </div>
     );
   }
 
@@ -349,8 +350,11 @@ const VotingPage: React.FC = () => {
             >
               <div className="text-center">
                 <h3 className="text-3xl font-bold text-gray-900 mb-6">Konfirmasi</h3>
-                <p className="text-xl text-gray-700 mb-8">
+                <p className="text-xl text-gray-700 mb-4">
                   Anda yakin memilih <span className="font-semibold text-blue-600">{selectedCandidate.name}</span> sebagai calon ketua OSIS?
+                </p>
+                <p className="text-lg text-gray-600 mb-8">
+                  Anda menggunakan token {tokenType === 'teacher' ? 'guru' : 'siswa'} yang bernilai {tokenType === 'teacher' ? '2 suara' : '1 suara'}.
                 </p>
                 <div className="flex justify-center space-x-6">
                   <motion.button
