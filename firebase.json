@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "pemos-mosa",
     "public": "dist",
     "ignore": [
       "firebase.json",
@@ -14,3 +15,5 @@
     ]
   }
 }
+
+

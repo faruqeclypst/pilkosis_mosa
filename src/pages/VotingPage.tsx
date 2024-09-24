@@ -180,7 +180,7 @@ const VotingPage: React.FC = () => {
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
       onClick={() => handleVoteClick(candidate)}
-      className="mt-auto w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-4 rounded-full transition-all duration-300 transform hover:shadow-lg text-lg font-semibold"
+      className="mt-auto w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-4 rounded-full transition-all duration-300 transform hover:shadow-lg text-lg font-semibold"
     >
       Vote
     </motion.button>
@@ -232,7 +232,8 @@ const VotingPage: React.FC = () => {
 
   if (!isValidToken) {
     return (
-<div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-400 via-purple-500 to-pink-500">
+<div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-300 via-blue-500 to-blue-900">
+{/* <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-400 via-purple-500 to-pink-500"> */}
   <div className="bg-white p-6 sm:p-12 rounded-3xl shadow-2xl max-w-md w-full">
     <h2 className="text-2xl sm:text-3xl font-bold mb-6 text-center text-gray-800">Masukkan Token</h2>
     {error && <p className="text-red-500 font-bold mb-6 text-center">{error}</p>}
@@ -245,7 +246,7 @@ const VotingPage: React.FC = () => {
     />
     <button
       onClick={validateToken}
-      className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-2 sm:px-6 sm:py-3 rounded-full hover:shadow-lg w-full text-lg font-semibold transition-all duration-300"
+      className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-2 sm:px-6 sm:py-3 rounded-full hover:shadow-lg w-full text-lg font-semibold transition-all duration-300"
     >
       Validasi Token
     </button>
@@ -260,7 +261,7 @@ const VotingPage: React.FC = () => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="min-h-screen py-12 px-6 bg-gradient-to-r from-blue-50 to-purple-50"
+      className="min-h-screen py-12 px-6 bg-gradient-to-br from-blue-50 via-blue-50 to-blue-50"
     >
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-16">

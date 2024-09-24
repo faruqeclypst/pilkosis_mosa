@@ -5,13 +5,13 @@ import { getDatabase } from 'firebase/database';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDJc5VTrqjJ-55cHB1vm8II-7XquFkL7TE",
-  authDomain: "webtestmosa.firebaseapp.com",
-  databaseURL: "https://webtestmosa-default-rtdb.asia-southeast1.firebasedatabase.app", // Perbarui ini
-  projectId: "webtestmosa",
-  storageBucket: "webtestmosa.appspot.com",
-  messagingSenderId: "615515289948",
-  appId: "1:615515289948:web:00df3b2bfb28d6a243a999"
+  apiKey: "AIzaSyDX8goy2zIiOMBjWev3zNiZXmxK5E5W038",
+  authDomain: "pilkosis-mosa.firebaseapp.com",
+  databaseURL: "https://pilkosis-mosa-default-rtdb.asia-southeast1.firebasedatabase.app", 
+  projectId: "pilkosis-mosa",
+  storageBucket: "pilkosis-mosa.appspot.com",
+  messagingSenderId: "367877705611",
+  appId: "1:367877705611:web:2c962e30fa0257b06b698e",
 };
 
 const app = initializeApp(firebaseConfig);

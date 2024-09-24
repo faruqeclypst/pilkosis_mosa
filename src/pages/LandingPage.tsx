@@ -45,7 +45,8 @@ const LandingPage: React.FC = () => {
   }, [schoolInfo.name]);
 
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-br from-blue-400 via-purple-500 to-pink-500">
+    <div className="h-screen flex flex-col bg-gradient-to-br from-blue-300 via-blue-500 to-blue-900">
+    {/* <div className="h-screen flex flex-col bg-gradient-to-br from-blue-400 via-purple-500 to-pink-500"> */}
       <div className="flex-grow flex flex-col justify-center items-center px-4">
         <Hero 
           schoolName={typedName || schoolInfo.name} // Menggunakan schoolInfo.name sebagai fallback

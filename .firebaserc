@@ -1,6 +1,6 @@
 {
   "projects": {
-    "default": "webtestmosa",
+    "default": "pilkosis-mosa",
     "TEST WEB": "webtestmosa"
   },
   "targets": {},
