@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Admin } from '../../types';
-import { FaEdit, FaTrash } from 'react-icons/fa';
+import { FaUserCog, FaCheck, FaTimes, FaTrash, FaEdit } from 'react-icons/fa';
 
 interface AdminManagementProps {
   admins: Admin[];
@@ -11,9 +11,15 @@ interface AdminManagementProps {
   onDeleteAdmin: (adminId: string) => Promise<void>;
 }
 
-const AdminManagement: React.FC<AdminManagementProps> = ({ admins, onAddAdmin, onUpdateAdmin, onDeleteAdmin }) => {
+const AdminManagement: React.FC<AdminManagementProps> = ({ 
+  admins, 
+  onAddAdmin, 
+  onUpdateAdmin, 
+  onDeleteAdmin 
+}) => {
   const [newAdmin, setNewAdmin] = useState({ username: '', password: '' });
-  const [editingAdmin, setEditingAdmin] = useState<Admin | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ username: '', password: '' });
 
   const handleAddAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,122 +29,254 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ admins, onAddAdmin, o
     }
   };
 
-  const handleEditAdmin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editingAdmin) {
-      await onUpdateAdmin(editingAdmin.id, {
-        username: editingAdmin.username,
-        password: editingAdmin.password
-      });
-      setEditingAdmin(null);
-    }
+  const startEditing = (admin: Admin) => {
+    setEditingId(admin.id);
+    setEditForm({ 
+      username: admin.username, 
+      password: '' // Reset password field when editing
+    });
   };
 
-  const handleDeleteAdmin = async (adminId: string) => {
-    if (window.confirm('Are you sure you want to delete this admin?')) {
-      await onDeleteAdmin(adminId);
+  const cancelEditing = () => {
+    setEditingId(null);
+    setEditForm({ username: '', password: '' });
+  };
+
+  const handleSaveEdit = async (adminId: string) => {
+    try {
+      if (!editForm.username) return;
+      
+      const updateData: Partial<Admin> = {
+        username: editForm.username
+      };
+      
+      // Only include password if it was changed
+      if (editForm.password) {
+        updateData.password = editForm.password;
+      }
+
+      await onUpdateAdmin(adminId, updateData);
+      setEditingId(null);
+    } catch (error) {
+      console.error('Error updating admin:', error);
     }
   };
 
   return (
-    <div id="admin-management" className="bg-white shadow rounded-lg p-6">
-      <h2 className="text-2xl font-bold mb-4">Admin Management</h2>
-
-      {/* Add New Admin Form */}
-      <form onSubmit={handleAddAdmin} className="mb-6">
-        <div className="flex space-x-2">
-          <input
-            type="text"
-            placeholder="Username"
-            value={newAdmin.username}
-            onChange={(e) => setNewAdmin({ ...newAdmin, username: e.target.value })}
-            className="flex-grow px-3 py-2 border rounded"
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={newAdmin.password}
-            onChange={(e) => setNewAdmin({ ...newAdmin, password: e.target.value })}
-            className="flex-grow px-3 py-2 border rounded"
-          />
-          <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
-            Add Admin
-          </button>
-        </div>
-      </form>
-
-      {/* Admin List */}
-      <div className="overflow-x-auto">
-        <table className="min-w-full leading-normal">
-          <thead>
-            <tr>
-              <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                Username
-              </th>
-              <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {admins.map((admin) => (
-              <tr key={admin.id}>
-                <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
-                  {admin.username}
-                </td>
-                <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
-                  <button
-                    onClick={() => setEditingAdmin(admin)}
-                    className="text-blue-600 hover:text-blue-900 mr-2"
-                  >
-                    <FaEdit />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteAdmin(admin.id)}
-                    className="text-red-600 hover:text-red-900"
-                  >
-                    <FaTrash />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <div id="admin-management" className="p-6">
+      <div className="flex items-center gap-3 mb-6">
+        <FaUserCog className="text-2xl text-blue-600" />
+        <h2 className="text-xl font-semibold text-gray-800">Manajemen Admin</h2>
       </div>
 
-      {/* Edit Admin Modal */}
-      {editingAdmin && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center">
-          <div className="bg-white p-5 rounded-lg shadow-lg">
-            <h3 className="text-lg font-bold mb-4">Edit Admin</h3>
-            <form onSubmit={handleEditAdmin}>
-              <input
-                type="text"
-                value={editingAdmin.username}
-                onChange={(e) => setEditingAdmin({ ...editingAdmin, username: e.target.value })}
-                className="mb-2 w-full px-3 py-2 border rounded"
-              />
-              <input
-                type="password"
-                value={editingAdmin.password}
-                onChange={(e) => setEditingAdmin({ ...editingAdmin, password: e.target.value })}
-                className="mb-2 w-full px-3 py-2 border rounded"
-              />
-              <div className="flex justify-end space-x-2">
-                <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
-                  Save
-                </button>
-                <button
-                  onClick={() => setEditingAdmin(null)}
-                  className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400"
-                >
-                  Cancel
-                </button>
+      {/* Add New Admin Form */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Tambah Admin Baru</h3>
+        <form onSubmit={handleAddAdmin} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input
+              type="text"
+              placeholder="Username"
+              value={newAdmin.username}
+              onChange={(e) => setNewAdmin({ ...newAdmin, username: e.target.value })}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              value={newAdmin.password}
+              onChange={(e) => setNewAdmin({ ...newAdmin, password: e.target.value })}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          <div className="flex justify-end">
+            <button 
+              type="submit" 
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Tambah Admin
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* Admin List */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+        {/* Desktop View */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Username
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Password
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Aksi
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {admins.map((admin) => (
+                <tr key={admin.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {editingId === admin.id ? (
+                      <input
+                        type="text"
+                        value={editForm.username}
+                        onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
+                        className="mobile-input w-full border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                      />
+                    ) : (
+                      <div className="flex items-center">
+                        <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center mr-3">
+                          <FaUserCog className="h-4 w-4 text-blue-600" />
+                        </div>
+                        <span className="text-sm font-medium text-gray-900">{admin.username}</span>
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {editingId === admin.id ? (
+                      <input
+                        type="password"
+                        value={editForm.password}
+                        onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+                        placeholder="Kosongkan jika tidak diubah"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    ) : (
+                      <span className="text-sm text-gray-500">••••••••</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    {editingId === admin.id ? (
+                      <div className="flex justify-end space-x-2">
+                        <button
+                          onClick={() => handleSaveEdit(admin.id)}
+                          className="inline-flex items-center p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200"
+                          title="Simpan"
+                        >
+                          <FaCheck size={16} />
+                        </button>
+                        <button
+                          onClick={cancelEditing}
+                          className="inline-flex items-center p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
+                          title="Batal"
+                        >
+                          <FaTimes size={16} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex justify-end space-x-2">
+                        <button
+                          onClick={() => startEditing(admin)}
+                          className="inline-flex items-center p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200"
+                          title="Edit"
+                        >
+                          <FaEdit size={16} />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`Hapus admin ${admin.username}?`)) {
+                              onDeleteAdmin(admin.id);
+                            }
+                          }}
+                          className="inline-flex items-center p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200"
+                          title="Hapus"
+                        >
+                          <FaTrash size={16} />
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile View */}
+        <div className="md:hidden">
+          <div className="space-y-4 p-4">
+            {admins.map((admin) => (
+              <div key={admin.id} className="bg-gray-50 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center">
+                    <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center mr-3">
+                      <FaUserCog className="h-4 w-4 text-blue-600" />
+                    </div>
+                    {editingId === admin.id ? (
+                      <input
+                        type="text"
+                        value={editForm.username}
+                        onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
+                        className="mobile-input w-full border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                      />
+                    ) : (
+                      <span className="text-sm font-medium text-gray-900">{admin.username}</span>
+                    )}
+                  </div>
+                  <div className="flex space-x-2">
+                    {editingId === admin.id ? (
+                      <>
+                        <button
+                          onClick={() => handleSaveEdit(admin.id)}
+                          className="inline-flex items-center p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200"
+                          title="Simpan"
+                        >
+                          <FaCheck size={16} />
+                        </button>
+                        <button
+                          onClick={cancelEditing}
+                          className="inline-flex items-center p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
+                          title="Batal"
+                        >
+                          <FaTimes size={16} />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => startEditing(admin)}
+                          className="inline-flex items-center p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200"
+                          title="Edit"
+                        >
+                          <FaEdit size={16} />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`Hapus admin ${admin.username}?`)) {
+                              onDeleteAdmin(admin.id);
+                            }
+                          }}
+                          className="inline-flex items-center p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200"
+                          title="Hapus"
+                        >
+                          <FaTrash size={16} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                {editingId === admin.id && (
+                  <div className="mt-2">
+                    <input
+                      type="password"
+                      value={editForm.password}
+                      onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+                      placeholder="Kosongkan jika tidak mengubah password"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                )}
               </div>
-            </form>
+            ))}
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };

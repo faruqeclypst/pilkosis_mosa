@@ -22,10 +22,19 @@ export interface Token {
   candidateId: string | null;
   originalIndex: number;
   type: 'student' | 'teacher';
+  kelas?: string;
+  createdAt: number;
+  expiresAt: number;
 }
 
 export interface Admin {
   id: string;
   username: string;
   password: string;
+}
+
+export interface ClassConfig {
+  id?: string;
+  name: string;
+  studentCount: number;
 }

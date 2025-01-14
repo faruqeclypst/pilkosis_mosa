@@ -35,4 +35,91 @@
   .content-layout {
     @apply flex items-center justify-center min-h-screen min-w-[320px];
   }
+  
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  
+  .mobile-text {
+    @apply text-sm md:text-base;
+  }
+  
+  .mobile-heading {
+    @apply text-lg md:text-xl;
+  }
+  
+  .mobile-button {
+    @apply px-3 py-1.5 md:px-4 md:py-2 text-sm;
+  }
+  
+  .mobile-input {
+    @apply px-3 py-1.5 md:px-4 md:py-2 text-sm;
+  }
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  html {
+    font-size: 14px;
+    -webkit-text-size-adjust: 100%;
+  }
+  
+  body {
+    @apply touch-pan-y;
+  }
+  
+  /* Prevent pull-to-refresh on mobile */
+  body {
+    overscroll-behavior-y: none;
+  }
+  
+  /* Adjust button sizes */
+  button {
+    @apply text-sm py-1.5 px-3;
+  }
+  
+  /* Adjust input sizes */
+  input {
+    @apply text-sm py-1.5 px-3;
+  }
+  
+  /* Adjust headings */
+  h1 {
+    @apply text-xl;
+  }
+  
+  h2 {
+    @apply text-lg;
+  }
+  
+  h3 {
+    @apply text-base;
+  }
+  
+  /* Adjust table text */
+  table {
+    @apply text-sm;
+  }
+  
+  /* Adjust card padding */
+  .card, .rounded-lg {
+    @apply p-3 md:p-4;
+  }
+  
+  /* Better tap targets on mobile while keeping visual size small */
+  button, 
+  [role="button"],
+  a {
+    @apply min-h-[36px] min-w-[36px];
+  }
+  
+  input,
+  select,
+  textarea {
+    @apply min-h-[36px];
+  }
 }

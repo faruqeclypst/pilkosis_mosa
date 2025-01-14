@@ -156,7 +156,7 @@ const ProtectedRoute: React.FC = () => {
         
         <p className="mt-8 text-center text-sm font-italic text-gray-600">
           &copy;{new Date().getFullYear()} Alfaruq Asri, S.Pd. 
-          <span className="block">SMAN Modal Bangsa. All rights reserved.</span>
+          <span className="block">SMAN 3 BANDA ACEH. All rights reserved.</span>
         </p>
       </div>
 

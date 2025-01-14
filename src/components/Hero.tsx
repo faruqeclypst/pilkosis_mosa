@@ -36,7 +36,7 @@ const Hero: React.FC<HeroProps> = React.memo(({ schoolName, schoolLogo }) => {
       </div>
       <footer className="py-4">
         <p className="text-center font-italic text-1xl text-white">
-          &copy; {new Date().getFullYear()} SMA Negeri Modal Bangsa
+          &copy; {new Date().getFullYear()} SMA Negeri 3 Banda Aceh
         </p>
       </footer>
     </div>
